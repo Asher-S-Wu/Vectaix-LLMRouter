@@ -20,7 +20,7 @@ export function SettingsCheck() {
   return (
     <div className="connection-check">
       <button className="button button-secondary" disabled={pending} onClick={check} type="button">
-        {pending ? "正在从新加坡连接…" : "检查 OpenRouter 连接"}
+        {pending ? "正在连接…" : "测试与 OpenRouter 的连接"}
       </button>
       {result ? (
         <p className={`check-result ${result.ok ? "is-success" : "is-error"}`} role="status">

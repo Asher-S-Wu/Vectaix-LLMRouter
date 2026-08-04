@@ -24,7 +24,7 @@ export function LogoutButton() {
   return (
     <button className="nav-logout" disabled={pending} onClick={logout} type="button">
       <LogoutIcon />
-      <span>{pending ? "正在离港…" : "退出控制台"}</span>
+      <span>{pending ? "正在退出…" : "退出登录"}</span>
     </button>
   );
 }

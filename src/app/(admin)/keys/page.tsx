@@ -12,8 +12,7 @@ export default async function KeysPage() {
   return (
     <div className="page-wrap keys-page">
       <PageHeading
-        description="每台设备使用独立密钥；OpenRouter 的真实密钥不会出现在这里。"
-        eyebrow="VECTAIX ACCESS CONTROL / DEVICE KEYS"
+        description="给每台设备发一把独立的密钥，不用了随时可以移除。OpenRouter 的真实密钥不会出现在这里。"
         title="设备密钥"
       />
       <KeyManager initialKeys={keys} />

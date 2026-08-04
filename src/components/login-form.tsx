@@ -40,7 +40,7 @@ export function LoginForm() {
           disabled={pending}
           id="admin-password"
           name="password"
-          placeholder="输入 Zeabur 中设置的管理密码"
+          placeholder="请输入管理密码"
           ref={passwordRef}
           required
           type="password"
@@ -48,8 +48,7 @@ export function LoginForm() {
       </div>
       {message ? <p className="form-message is-error" role="alert">{message}</p> : null}
       <button className="button button-primary login-submit" disabled={pending} type="submit">
-        <span>{pending ? "正在验证航行许可…" : "进入控制台"}</span>
-        <span aria-hidden="true">↗</span>
+        {pending ? "正在验证…" : "登录"}
       </button>
     </form>
   );

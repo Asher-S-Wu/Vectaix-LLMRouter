@@ -53,18 +53,29 @@ export function CopyIcon(props: IconProps) {
   );
 }
 
-export function PulseIcon(props: IconProps) {
+export function ShieldIcon(props: IconProps) {
   return (
     <IconBase {...props}>
-      <path d="M3 12h4l2-6 4 12 2-6h6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+      <path d="M12 3 5 5.8v5.4c0 4.3 2.9 7.5 7 9 4.1-1.5 7-4.7 7-9V5.8L12 3Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.6" />
+      <path d="m9.2 11.6 2 2 3.6-3.8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
     </IconBase>
   );
 }
 
-export function ChevronIcon(props: IconProps) {
+export function ZapIcon(props: IconProps) {
   return (
     <IconBase {...props}>
-      <path d="m9 6 6 6-6 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+      <path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12L13 2Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.6" />
+    </IconBase>
+  );
+}
+
+export function EyeOffIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 4l16 16" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+      <path d="M10.6 5.2A9.9 9.9 0 0 1 12 5c5 0 8.5 3.5 10 7-.4 1-1.1 2-2 2.9M6.6 6.9C4.6 8.1 3.2 9.9 2 12c1.5 3.5 5 7 10 7 1.4 0 2.7-.3 3.9-.8" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
     </IconBase>
   );
 }

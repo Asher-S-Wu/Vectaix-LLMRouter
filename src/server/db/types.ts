@@ -6,7 +6,6 @@ export interface ProxyKeyDocument {
   prefix: string;
   keyHash: string;
   createdAt: Date;
-  revokedAt: Date | null;
 }
 
 export interface LoginAttemptDocument {

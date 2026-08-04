@@ -5,14 +5,13 @@ import { ObjectId } from "mongodb";
 import { getProxyKeyCollection } from "@/server/db";
 
 const KEY_NAME_MAX_LENGTH = 80;
-const RAW_KEY_PREFIX = "orpx_";
+const RAW_KEY_PREFIX = "sk-";
 
 export interface ProxyKeyItem {
   id: string;
   name: string;
   prefix: string;
   createdAt: string;
-  revokedAt: string | null;
 }
 
 export interface CreatedProxyKey {
@@ -62,14 +61,12 @@ function toItem(document: {
   name: string;
   prefix: string;
   createdAt: Date;
-  revokedAt: Date | null;
 }): ProxyKeyItem {
   return {
     id: document._id.toHexString(),
     name: document.name,
     prefix: document.prefix,
     createdAt: document.createdAt.toISOString(),
-    revokedAt: document.revokedAt?.toISOString() ?? null,
   };
 }
 
@@ -90,7 +87,6 @@ export async function createProxyKey(name: string): Promise<CreatedProxyKey> {
     prefix: key.slice(0, 13),
     keyHash: hashKey(key),
     createdAt: now,
-    revokedAt: null,
   };
 
   await collection.insertOne(document);
@@ -118,13 +114,10 @@ export async function renameProxyKey(
   return updated ? toItem(updated) : null;
 }
 
-export async function revokeProxyKey(id: string): Promise<boolean> {
+export async function removeProxyKey(id: string): Promise<boolean> {
   const collection = await getProxyKeyCollection();
-  const result = await collection.updateOne(
-    { _id: parseId(id), revokedAt: null },
-    { $set: { revokedAt: new Date() } },
-  );
-  return result.modifiedCount === 1;
+  const result = await collection.deleteOne({ _id: parseId(id) });
+  return result.deletedCount === 1;
 }
 
 export async function authenticateProxyKey(
@@ -139,7 +132,6 @@ export async function authenticateProxyKey(
   const collection = await getProxyKeyCollection();
   const document = await collection.findOne({
     keyHash: hashKey(candidate),
-    revokedAt: null,
   }, { projection: { _id: 1 } });
 
   return document !== null;

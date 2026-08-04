@@ -221,7 +221,7 @@ export async function handleProxyRequest(request: Request, context: RouteContext
   } catch {
     return proxyError(503, "Proxy authentication database is unavailable");
   }
-  if (!authenticated) return proxyError(401, "Invalid or revoked proxy API key");
+  if (!authenticated) return proxyError(401, "Invalid proxy API key");
 
   const { path } = await context.params;
   const upstreamUrl = buildUpstreamUrl(request, path);

@@ -2,8 +2,8 @@ export {
   ProxyKeyValidationError,
   createProxyKey,
   listProxyKeys,
+  removeProxyKey,
   renameProxyKey,
-  revokeProxyKey,
   type CreatedProxyKey,
   type ProxyKeyItem,
 } from "@/server/keys/service";

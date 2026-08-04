@@ -12,8 +12,8 @@ import {
 import {
   ProxyKeyValidationError,
   createProxyKey,
+  removeProxyKey,
   renameProxyKey,
-  revokeProxyKey,
   type CreatedProxyKey,
   type ProxyKeyItem,
 } from "@/server/keys";
@@ -131,18 +131,18 @@ export async function renameProxyKeyAction(
   }
 }
 
-export async function revokeProxyKeyAction(
+export async function removeProxyKeyAction(
   formData: FormData,
 ): Promise<AdminActionResult> {
   try {
     await requireAdminSession();
-    const revoked = await revokeProxyKey(formText(formData, "id"));
+    const removed = await removeProxyKey(formText(formData, "id"));
 
-    if (!revoked) {
-      return { ok: false, message: "设备密钥不存在或已经撤销" };
+    if (!removed) {
+      return { ok: false, message: "没有找到这个设备密钥" };
     }
 
-    return { ok: true, message: "设备密钥已撤销" };
+    return { ok: true, message: "设备密钥已移除" };
   } catch (error) {
     return actionError(error);
   }

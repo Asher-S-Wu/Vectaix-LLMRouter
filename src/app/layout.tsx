@@ -4,10 +4,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Vectaix · OpenRouter 私有代理",
+    default: "Vectaix · 私人 AI 中转站",
     template: "%s · Vectaix",
   },
-  description: "Vectaix 新加坡 OpenRouter 私有代理控制台",
+  description: "Vectaix 是你的专属 OpenRouter 中转站：换一个地址就能用上全部模型，对话内容不会被查看或保存。",
   icons: { icon: "/icon.svg" },
   robots: {
     index: false,
@@ -16,8 +16,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  colorScheme: "dark",
-  themeColor: "#06110f",
+  colorScheme: "light",
+  themeColor: "#ffffff",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

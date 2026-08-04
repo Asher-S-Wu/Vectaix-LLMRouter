@@ -6,39 +6,23 @@ export function RouteDiagram({
   activeKeys: number;
 }>) {
   return (
-    <section aria-label="代理连接链路" className="route-diagram surface">
-      <div className="route-skyline" aria-hidden="true">
-        <i /><i /><i /><i /><i /><i /><i />
+    <section aria-label="中转流程" className="flow-card surface">
+      <div className="flow-steps">
+        <div className="flow-node">
+          <strong>你的设备</strong>
+          <small>{activeKeys} 把有效密钥</small>
+        </div>
+        <span aria-hidden="true" className="flow-arrow">→</span>
+        <div className="flow-node is-hub">
+          <strong>Vectaix 节点</strong>
+          <small>新加坡 · 运行中</small>
+        </div>
+        <span aria-hidden="true" className="flow-arrow">→</span>
+        <div className="flow-node">
+          <strong>OpenRouter</strong>
+          <small>{openRouterConfigured ? "连接已就绪" : "密钥未配置"}</small>
+        </div>
       </div>
-      <div className="route-station route-origin">
-        <span className="station-code">LOCAL</span>
-        <span className="station-symbol device-symbol"><i /></span>
-        <strong>本地设备</strong>
-        <small>{activeKeys} 枚有效密钥</small>
-      </div>
-      <div className="route-line">
-        <span>ENCRYPTED</span>
-        <i><b /></i>
-      </div>
-      <div className="route-station route-singapore">
-        <span className="station-code">SIN · 01°N 103°E</span>
-        <span className="station-symbol singapore-symbol"><i /><i /><i /></span>
-        <strong>新加坡节点</strong>
-        <small><em />出口在线</small>
-      </div>
-      <div className="route-line">
-        <span>SERVER KEY</span>
-        <i><b /></i>
-      </div>
-      <div className="route-station route-destination">
-        <span className="station-code">GLOBAL</span>
-        <span className="station-symbol router-symbol"><i /><i /></span>
-        <strong>OpenRouter</strong>
-        <small className={openRouterConfigured ? undefined : "route-degraded"}>
-          {openRouterConfigured ? "服务端密钥已就绪" : "服务端密钥未配置"}
-        </small>
-      </div>
-      <span className="route-coordinate">SG / RELAY</span>
     </section>
   );
 }
