@@ -59,6 +59,10 @@ export function getConfig(): AppConfig {
 
   validateMongoUri(mongoUri);
 
+  if (adminPassword.length < 12) {
+    throw new Error("ADMIN_PASSWORD 至少需要 12 个字符");
+  }
+
   if (Buffer.byteLength(sessionSecret, "utf8") < 32) {
     throw new Error("SESSION_SECRET 至少需要 32 字节");
   }

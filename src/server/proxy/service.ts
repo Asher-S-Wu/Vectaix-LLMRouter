@@ -260,6 +260,23 @@ export async function handleProxyRequest(request: Request, context: RouteContext
   }
 
   const responseHeaders = buildResponseHeaders(upstream);
+  const contentType = upstream.headers.get("content-type") ?? "";
+  const isJsonError =
+    upstream.status >= 400 &&
+    contentType.toLowerCase().includes("application/json");
+
+  if (isJsonError) {
+    const payload = (await upstream.json()) as Record<string, unknown>;
+    delete payload.user_id;
+    detachAbortListener();
+
+    return new Response(JSON.stringify(payload), {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: responseHeaders,
+    });
+  }
+
   if (!upstream.body) detachAbortListener();
 
   return new Response(
