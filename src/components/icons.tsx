@@ -79,3 +79,48 @@ export function EyeOffIcon(props: IconProps) {
     </IconBase>
   );
 }
+
+export function UsersIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="9" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M2.5 19.5c.8-3.2 3.4-5 6.5-5s5.7 1.8 6.5 5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+      <path d="M16 4.7a3.5 3.5 0 0 1 0 6.6M18.6 14.9c1.7.8 2.8 2.3 3.2 4.3" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+    </IconBase>
+  );
+}
+
+export function BookIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.6" />
+      <path d="M5 19.5A1.5 1.5 0 0 1 6.5 18H19v3H6.5A1.5 1.5 0 0 1 5 19.5Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.6" />
+    </IconBase>
+  );
+}
+
+export function SunIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M12 2.8v2M12 19.2v2M4.7 4.7l1.4 1.4M17.9 17.9l1.4 1.4M2.8 12h2M19.2 12h2M4.7 19.3l1.4-1.4M17.9 6.1l1.4-1.4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+    </IconBase>
+  );
+}
+
+export function MoonIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M20 14.4A8.2 8.2 0 0 1 9.6 4 8.2 8.2 0 1 0 20 14.4Z" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.6" />
+    </IconBase>
+  );
+}
+
+export function MonitorIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect height="12" rx="1.5" stroke="currentColor" strokeWidth="1.6" width="18" x="3" y="4" />
+      <path d="M9 20h6M12 16v4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.6" />
+    </IconBase>
+  );
+}

@@ -2,21 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ComponentType, SVGProps } from "react";
 
-import { DashboardIcon, KeyIcon, SettingsIcon } from "./icons";
+export interface ConsoleNavItem {
+  href: string;
+  label: string;
+  shortLabel: string;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
+}
 
-const navigation = [
-  { href: "/dashboard", label: "总览", shortLabel: "总览", icon: DashboardIcon },
-  { href: "/keys", label: "设备密钥", shortLabel: "密钥", icon: KeyIcon },
-  { href: "/settings", label: "接入设置", shortLabel: "设置", icon: SettingsIcon },
-];
-
-export function AdminNav() {
+export function ConsoleNav({ items }: Readonly<{ items: ConsoleNavItem[] }>) {
   const pathname = usePathname();
 
   return (
     <nav aria-label="控制台导航" className="admin-nav">
-      {navigation.map((item) => {
+      {items.map((item) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;
         return (

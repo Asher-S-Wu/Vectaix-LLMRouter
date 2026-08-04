@@ -2,20 +2,35 @@ import type { Metadata } from "next";
 
 import { KeyManager } from "@/components/key-manager";
 import { PageHeading } from "@/components/page-heading";
-import { getProxyKeys } from "@/server/admin/queries";
+import {
+  createAdminKeyAction,
+  removeAdminKeyAction,
+  renameAdminKeyAction,
+  revealAdminKeyAction,
+} from "@/features/admin/actions";
+import { requireAdminSession } from "@/server/auth/admin-session";
+import { listProxyKeys } from "@/server/keys/service";
 
-export const metadata: Metadata = { title: "设备密钥" };
+export const metadata: Metadata = { title: "我的密钥" };
 export const dynamic = "force-dynamic";
 
-export default async function KeysPage() {
-  const keys = await getProxyKeys();
+export default async function AdminKeysPage() {
+  await requireAdminSession();
+  const keys = await listProxyKeys(null);
+
   return (
     <div className="page-wrap keys-page">
       <PageHeading
-        description="给每台设备发一把独立的密钥，不用了随时可以移除。OpenRouter 的真实密钥不会出现在这里。"
-        title="设备密钥"
+        description="这是你自己使用的密钥，和用户的密钥互不影响，也不受模型权限限制。"
+        title="我的密钥"
       />
-      <KeyManager initialKeys={keys} />
+      <KeyManager
+        createAction={createAdminKeyAction}
+        initialKeys={keys}
+        removeAction={removeAdminKeyAction}
+        renameAction={renameAdminKeyAction}
+        revealAction={revealAdminKeyAction}
+      />
     </div>
   );
 }

@@ -1,12 +1,22 @@
 import "server-only";
 
 import { requireAdminSession } from "@/server/auth/admin-session";
-import { listProxyKeys } from "@/server/keys/service";
 import { getSystemStatus, type SettingsStatus } from "@/server/status/service";
+import {
+  getUserStats,
+  listUsers,
+  type AdminUserItem,
+  type UserStats,
+} from "@/server/users/service";
 
-export async function getProxyKeys() {
+export async function getUsers(): Promise<AdminUserItem[]> {
   await requireAdminSession();
-  return listProxyKeys();
+  return listUsers();
+}
+
+export async function getDashboardStats(): Promise<UserStats> {
+  await requireAdminSession();
+  return getUserStats();
 }
 
 export async function getSettingsStatus(): Promise<SettingsStatus> {

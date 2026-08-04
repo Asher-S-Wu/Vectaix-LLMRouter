@@ -10,15 +10,24 @@ import { getConfig } from "@/server/config";
 
 export const ADMIN_SESSION_COOKIE = "__Host-vectaix_admin";
 export const ADMIN_SESSION_SECONDS = 12 * 60 * 60;
+export const USER_SESSION_COOKIE = "__Host-vectaix_user";
+export const USER_SESSION_SECONDS = 30 * 24 * 60 * 60;
 
 interface SessionPayload {
   v: 1;
   iat: number;
   exp: number;
   nonce: string;
+  sub?: string;
 }
 
 export interface AdminSession {
+  issuedAt: string;
+  expiresAt: string;
+}
+
+export interface UserSession {
+  userId: string;
   issuedAt: string;
   expiresAt: string;
 }
@@ -29,6 +38,15 @@ export class AdminAuthenticationError extends Error {
   constructor() {
     super("管理员登录状态无效或已过期");
     this.name = "AdminAuthenticationError";
+  }
+}
+
+export class UserAuthenticationError extends Error {
+  readonly code = "USER_AUTHENTICATION_REQUIRED";
+
+  constructor() {
+    super("登录状态无效或已过期");
+    this.name = "UserAuthenticationError";
   }
 }
 
@@ -85,22 +103,27 @@ function parse(token: string): SessionPayload | null {
   }
 }
 
-export async function createAdminSession(): Promise<AdminSession> {
+async function writeSession(
+  cookieName: string,
+  seconds: number,
+  sub?: string,
+): Promise<{ issuedAt: string; expiresAt: string }> {
   const issuedAtSeconds = Math.floor(Date.now() / 1000);
   const payload: SessionPayload = {
     v: 1,
     iat: issuedAtSeconds,
-    exp: issuedAtSeconds + ADMIN_SESSION_SECONDS,
+    exp: issuedAtSeconds + seconds,
     nonce: randomUUID(),
+    ...(sub ? { sub } : {}),
   };
   const cookieStore = await cookies();
 
-  cookieStore.set(ADMIN_SESSION_COOKIE, serialize(payload), {
+  cookieStore.set(cookieName, serialize(payload), {
     httpOnly: true,
     secure: true,
     sameSite: "strict",
     path: "/",
-    maxAge: ADMIN_SESSION_SECONDS,
+    maxAge: seconds,
   });
 
   return {
@@ -109,20 +132,28 @@ export async function createAdminSession(): Promise<AdminSession> {
   };
 }
 
+async function readSession(cookieName: string): Promise<SessionPayload | null> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(cookieName)?.value;
+
+  if (!token) {
+    return null;
+  }
+
+  return parse(token);
+}
+
+export async function createAdminSession(): Promise<AdminSession> {
+  return writeSession(ADMIN_SESSION_COOKIE, ADMIN_SESSION_SECONDS);
+}
+
 export async function clearAdminSession(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete(ADMIN_SESSION_COOKIE);
 }
 
 export async function getAdminSession(): Promise<AdminSession | null> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(ADMIN_SESSION_COOKIE)?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  const payload = parse(token);
+  const payload = await readSession(ADMIN_SESSION_COOKIE);
 
   if (!payload) {
     return null;
@@ -139,6 +170,40 @@ export async function requireAdminSession(): Promise<AdminSession> {
 
   if (!session) {
     throw new AdminAuthenticationError();
+  }
+
+  return session;
+}
+
+export async function createUserSession(userId: string): Promise<UserSession> {
+  const base = await writeSession(USER_SESSION_COOKIE, USER_SESSION_SECONDS, userId);
+  return { userId, ...base };
+}
+
+export async function clearUserSession(): Promise<void> {
+  const cookieStore = await cookies();
+  cookieStore.delete(USER_SESSION_COOKIE);
+}
+
+export async function getUserSession(): Promise<UserSession | null> {
+  const payload = await readSession(USER_SESSION_COOKIE);
+
+  if (!payload || typeof payload.sub !== "string" || !payload.sub) {
+    return null;
+  }
+
+  return {
+    userId: payload.sub,
+    issuedAt: new Date(payload.iat * 1000).toISOString(),
+    expiresAt: new Date(payload.exp * 1000).toISOString(),
+  };
+}
+
+export async function requireUserSession(): Promise<UserSession> {
+  const session = await getUserSession();
+
+  if (!session) {
+    throw new UserAuthenticationError();
   }
 
   return session;

@@ -5,6 +5,7 @@ import { CopyButton } from "@/components/copy-button";
 import { LogoutButton } from "@/components/logout-button";
 import { PageHeading } from "@/components/page-heading";
 import { SettingsCheck } from "@/components/settings-check";
+import { logoutAction } from "@/features/admin/actions";
 import { getSettingsStatus } from "@/server/admin/queries";
 
 export const metadata: Metadata = { title: "接入设置" };
@@ -38,7 +39,7 @@ export default async function SettingsPage() {
   return (
     <div className="page-wrap settings-page">
       <PageHeading
-        description="把下面的中转地址和设备密钥填进你的 AI 软件，就能开始使用了。"
+        description="把这个中转地址告诉你的用户，配合他们自己创建的密钥就能开始使用。"
         title="接入设置"
         action={<span className="heading-note"><i />检查于 {formatDate(status.checkedAt)}</span>}
       />
@@ -62,7 +63,7 @@ export default async function SettingsPage() {
             </div>
             <div className="guide-step">
               <span>2</span>
-              <div><strong>密钥（API Key）</strong><p>填“设备密钥”页面创建的密钥，不要填 OpenRouter 的真实密钥。</p></div>
+              <div><strong>密钥（API Key）</strong><p>填用户在“我的密钥”页面创建的密钥，不要填 OpenRouter 的真实密钥。</p></div>
             </div>
           </div>
           <div className="code-example">
@@ -92,7 +93,7 @@ export default async function SettingsPage() {
 
         <section className="surface session-card">
           <div><h2>管理会话</h2><p>退出后，这台设备需要重新输入密码才能进入控制台。</p></div>
-          <LogoutButton />
+          <LogoutButton action={logoutAction} />
         </section>
       </div>
     </div>

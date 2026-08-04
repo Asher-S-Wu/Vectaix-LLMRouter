@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { AuthTabs } from "@/components/login-form";
+import { RegisterForm } from "@/components/register-form";
 import { ThemeToggle } from "@/components/theme-switcher";
 import { getAdminSession, getUserSession } from "@/server/auth";
 
-export const metadata: Metadata = { title: "登录" };
+export const metadata: Metadata = { title: "注册" };
 
-export default async function LoginPage() {
+export default async function RegisterPage() {
   const [adminSession, userSession] = await Promise.all([
     getAdminSession(),
     getUserSession(),
@@ -24,11 +24,12 @@ export default async function LoginPage() {
       <div>
         <section className="login-card surface">
           <span aria-hidden="true" className="brand-mark brand-mark-large">V</span>
-          <h1>登录 Vectaix</h1>
-          <p>用户登录后创建和管理自己的密钥，管理员进入控制台管理用户。</p>
-          <AuthTabs />
+          <h1>创建账户</h1>
+          <p>注册后即可创建自己的设备密钥，马上开始使用。</p>
+          <RegisterForm />
+          <p className="login-note">可用模型范围由管理员统一设置，注册后可在“我的密钥”页查看。</p>
         </section>
-        <Link className="login-back" href="/">返回首页</Link>
+        <Link className="login-back" href="/login">已有账户？直接登录</Link>
       </div>
     </main>
   );

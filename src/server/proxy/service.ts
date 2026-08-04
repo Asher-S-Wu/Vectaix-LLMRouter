@@ -1,9 +1,16 @@
 import "server-only";
 
 import { getConfig } from "@/server/config";
+import type { ModelRestrictionMode } from "@/server/db/types";
 import { authenticateProxyKey } from "@/server/keys/service";
 
 const OPENROUTER_ORIGIN = "https://openrouter.ai";
+
+const MODEL_ENDPOINTS = new Set([
+  "chat/completions",
+  "completions",
+  "embeddings",
+]);
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -82,6 +89,17 @@ const BLOCKED_RESPONSE_HEADERS = new Set([
 ]);
 
 type RouteContext = { params: Promise<{ path: string[] }> };
+
+interface ModelRestriction {
+  modelMode: ModelRestrictionMode;
+  models: string[];
+}
+
+function isModelAllowed(auth: ModelRestriction, model: string): boolean {
+  return auth.modelMode === "allow"
+    ? auth.models.includes(model)
+    : !auth.models.includes(model);
+}
 
 function corsHeaders(base?: HeadersInit) {
   const headers = new Headers(base);
@@ -215,17 +233,48 @@ export async function handleProxyRequest(request: Request, context: RouteContext
   const token = extractProxyToken(request);
   if (!token) return proxyError(401, "Invalid or missing proxy API key");
 
-  let authenticated: Awaited<ReturnType<typeof authenticateProxyKey>>;
+  let auth: Awaited<ReturnType<typeof authenticateProxyKey>>;
   try {
-    authenticated = await authenticateProxyKey(token);
+    auth = await authenticateProxyKey(token);
   } catch {
     return proxyError(503, "Proxy authentication database is unavailable");
   }
-  if (!authenticated) return proxyError(401, "Invalid proxy API key");
+  if (!auth) return proxyError(401, "Invalid proxy API key");
 
   const { path } = await context.params;
   const upstreamUrl = buildUpstreamUrl(request, path);
   if (!upstreamUrl) return proxyError(400, "Invalid OpenRouter API path");
+
+  const restricted = auth.modelMode !== "all";
+  const joinedPath = path.join("/");
+
+  let checkedBody: string | null = null;
+  if (
+    restricted &&
+    request.method === "POST" &&
+    MODEL_ENDPOINTS.has(joinedPath)
+  ) {
+    let payload: unknown;
+    try {
+      payload = await request.json();
+    } catch {
+      return proxyError(400, "Request body must be valid JSON");
+    }
+
+    const model = (payload as { model?: unknown } | null)?.model;
+    if (typeof model !== "string" || !model) {
+      return proxyError(400, "Request body must include a model");
+    }
+
+    if (!isModelAllowed(auth, model)) {
+      return proxyError(
+        403,
+        `Model "${model}" is not allowed for this API key`,
+      );
+    }
+
+    checkedBody = JSON.stringify(payload);
+  }
 
   const abortController = new AbortController();
   const abortFromClient = () => abortController.abort(request.signal.reason);
@@ -244,8 +293,12 @@ export async function handleProxyRequest(request: Request, context: RouteContext
     signal: abortController.signal,
   };
   if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = request.body;
-    init.duplex = "half";
+    if (checkedBody !== null) {
+      init.body = checkedBody;
+    } else {
+      init.body = request.body;
+      init.duplex = "half";
+    }
   }
 
   let upstream: Response;
@@ -275,6 +328,43 @@ export async function handleProxyRequest(request: Request, context: RouteContext
       statusText: upstream.statusText,
       headers: responseHeaders,
     });
+  }
+
+  const filterModels =
+    restricted &&
+    request.method === "GET" &&
+    joinedPath === "models" &&
+    upstream.ok &&
+    contentType.toLowerCase().includes("application/json");
+
+  if (filterModels) {
+    detachAbortListener();
+
+    let payload: unknown;
+    try {
+      payload = await upstream.json();
+    } catch {
+      return proxyError(502, "Invalid response from OpenRouter");
+    }
+
+    const data = (payload as { data?: unknown } | null)?.data;
+    if (!Array.isArray(data)) {
+      return proxyError(502, "Invalid response from OpenRouter");
+    }
+
+    const filtered = data.filter((item) => {
+      const id = (item as { id?: unknown } | null)?.id;
+      return typeof id === "string" && isModelAllowed(auth, id);
+    });
+
+    return new Response(
+      JSON.stringify({ ...(payload as Record<string, unknown>), data: filtered }),
+      {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: responseHeaders,
+      },
+    );
   }
 
   if (!upstream.body) detachAbortListener();

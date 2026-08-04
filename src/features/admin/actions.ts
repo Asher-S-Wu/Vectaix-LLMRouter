@@ -14,10 +14,22 @@ import {
   createProxyKey,
   removeProxyKey,
   renameProxyKey,
+  revealProxyKey,
   type CreatedProxyKey,
   type ProxyKeyItem,
 } from "@/server/keys";
+import {
+  UpstreamModelsError,
+  listUpstreamModels,
+  type UpstreamModel,
+} from "@/server/models/service";
 import { checkOpenRouterConnection } from "@/server/status/service";
+import {
+  UserValidationError,
+  removeUser,
+  updateUserModels,
+  type AdminUserItem,
+} from "@/server/users/service";
 
 export interface AdminActionResult<T = undefined> {
   ok: boolean;
@@ -40,11 +52,33 @@ function actionError<T = undefined>(error: unknown): AdminActionResult<T> {
     return { ok: false, message: "登录状态已失效，请重新登录" };
   }
 
-  if (error instanceof ProxyKeyValidationError) {
+  if (
+    error instanceof UserValidationError ||
+    error instanceof ProxyKeyValidationError
+  ) {
     return { ok: false, message: error.message };
   }
 
   return { ok: false, message: "操作暂时无法完成，请稍后再试" };
+}
+
+function parseModelsInput(raw: string): string[] | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw || "[]");
+  } catch {
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) {
+    return null;
+  }
+
+  if (parsed.some((item) => typeof item !== "string")) {
+    return null;
+  }
+
+  return parsed;
 }
 
 async function requestSourceIp(): Promise<string> {
@@ -95,12 +129,12 @@ export async function logoutAction(): Promise<AdminActionResult> {
   return { ok: true, message: "已安全退出" };
 }
 
-export async function createProxyKeyAction(
+export async function createAdminKeyAction(
   formData: FormData,
 ): Promise<AdminActionResult<CreatedProxyKey>> {
   try {
     await requireAdminSession();
-    const created = await createProxyKey(formText(formData, "name"));
+    const created = await createProxyKey(null, formText(formData, "name"));
     return {
       ok: true,
       message: "设备密钥已创建，请立即复制保存",
@@ -111,12 +145,13 @@ export async function createProxyKeyAction(
   }
 }
 
-export async function renameProxyKeyAction(
+export async function renameAdminKeyAction(
   formData: FormData,
 ): Promise<AdminActionResult<ProxyKeyItem>> {
   try {
     await requireAdminSession();
     const updated = await renameProxyKey(
+      null,
       formText(formData, "id"),
       formText(formData, "name"),
     );
@@ -131,12 +166,12 @@ export async function renameProxyKeyAction(
   }
 }
 
-export async function removeProxyKeyAction(
+export async function removeAdminKeyAction(
   formData: FormData,
 ): Promise<AdminActionResult> {
   try {
     await requireAdminSession();
-    const removed = await removeProxyKey(formText(formData, "id"));
+    const removed = await removeProxyKey(null, formText(formData, "id"));
 
     if (!removed) {
       return { ok: false, message: "没有找到这个设备密钥" };
@@ -145,6 +180,88 @@ export async function removeProxyKeyAction(
     return { ok: true, message: "设备密钥已移除" };
   } catch (error) {
     return actionError(error);
+  }
+}
+
+export async function revealAdminKeyAction(
+  formData: FormData,
+): Promise<AdminActionResult<{ key: string }>> {
+  try {
+    await requireAdminSession();
+    const result = await revealProxyKey(null, formText(formData, "id"));
+
+    if (result.status === "missing") {
+      return { ok: false, message: "没有找到这个设备密钥" };
+    }
+
+    return { ok: true, message: "密钥已取出", data: { key: result.key } };
+  } catch (error) {
+    return actionError(error);
+  }
+}
+
+export async function updateUserModelsAction(
+  formData: FormData,
+): Promise<AdminActionResult<AdminUserItem>> {
+  try {
+    await requireAdminSession();
+    const models = parseModelsInput(formText(formData, "models"));
+    if (models === null) {
+      return { ok: false, message: "模型列表格式不正确" };
+    }
+
+    const updated = await updateUserModels(
+      formText(formData, "id"),
+      formText(formData, "mode"),
+      models,
+    );
+
+    if (!updated) {
+      return { ok: false, message: "没有找到这个用户" };
+    }
+
+    return { ok: true, message: "模型权限已更新", data: updated };
+  } catch (error) {
+    return actionError(error);
+  }
+}
+
+export async function removeUserAction(
+  formData: FormData,
+): Promise<AdminActionResult> {
+  try {
+    await requireAdminSession();
+    const removed = await removeUser(formText(formData, "id"));
+
+    if (!removed) {
+      return { ok: false, message: "没有找到这个用户" };
+    }
+
+    return { ok: true, message: "用户已移除，其所有密钥已一并失效" };
+  } catch (error) {
+    return actionError(error);
+  }
+}
+
+export async function listUpstreamModelsAction(
+  formData: FormData,
+): Promise<AdminActionResult<UpstreamModel[]>> {
+  try {
+    await requireAdminSession();
+    const models = await listUpstreamModels(
+      formText(formData, "refresh") === "1",
+    );
+    return { ok: true, message: "模型列表已更新", data: models };
+  } catch (error) {
+    if (error instanceof AdminAuthenticationError) {
+      return actionError(error);
+    }
+
+    if (error instanceof UpstreamModelsError) {
+      return { ok: false, message: error.message };
+    }
+
+    return { ok: false, message: "模型列表获取失败，请稍后再试" };
   }
 }
 

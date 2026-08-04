@@ -1,7 +1,11 @@
 import { MongoClient, type Collection, type Db } from "mongodb";
 
 import { getConfig } from "@/server/config";
-import type { LoginAttemptDocument, ProxyKeyDocument } from "@/server/db/types";
+import type {
+  LoginAttemptDocument,
+  ProxyKeyDocument,
+  UserDocument,
+} from "@/server/db/types";
 
 declare global {
   var __vectaixMongoClientPromise: Promise<MongoClient> | undefined;
@@ -44,6 +48,7 @@ export async function ensureIndexes(): Promise<void> {
     globalThis.__vectaixIndexPromise = (async () => {
       const database = await getDatabase();
       const proxyKeys = database.collection<ProxyKeyDocument>("proxy_keys");
+      const users = database.collection<UserDocument>("users");
       const loginAttempts =
         database.collection<LoginAttemptDocument>("login_attempts");
 
@@ -53,9 +58,16 @@ export async function ensureIndexes(): Promise<void> {
       if (legacyRequestLogs.length > 0) {
         await database.collection("request_logs").drop();
       }
-      await database.collection("proxy_keys").updateMany(
+
+      // 架构切换：密钥必须归属用户，清除管理员时代的遗留数据。
+      await proxyKeys.deleteMany({ userId: { $exists: false } });
+      await proxyKeys.updateMany(
         { lastUsedAt: { $exists: true } },
         { $unset: { lastUsedAt: "" } },
+      );
+      await proxyKeys.updateMany(
+        { modelMode: { $exists: true } },
+        { $unset: { modelMode: "", models: "" } },
       );
 
       await Promise.all([
@@ -64,8 +76,16 @@ export async function ensureIndexes(): Promise<void> {
           { name: "proxy_keys_key_hash_unique", unique: true },
         ),
         proxyKeys.createIndex(
+          { userId: 1, createdAt: -1 },
+          { name: "proxy_keys_user_created_at" },
+        ),
+        users.createIndex(
+          { usernameKey: 1 },
+          { name: "users_username_key_unique", unique: true },
+        ),
+        users.createIndex(
           { createdAt: -1 },
-          { name: "proxy_keys_created_at" },
+          { name: "users_created_at" },
         ),
         loginAttempts.createIndex(
           { expiresAt: 1 },
@@ -95,6 +115,12 @@ export async function getProxyKeyCollection(): Promise<
   return (await getDatabase()).collection<ProxyKeyDocument>("proxy_keys");
 }
 
+export async function getUserCollection(): Promise<
+  Collection<UserDocument>
+> {
+  return (await getDatabase()).collection<UserDocument>("users");
+}
+
 export async function getLoginAttemptCollection(): Promise<
   Collection<LoginAttemptDocument>
 > {
@@ -106,4 +132,5 @@ export async function getLoginAttemptCollection(): Promise<
 export type {
   LoginAttemptDocument,
   ProxyKeyDocument,
+  UserDocument,
 } from "@/server/db/types";

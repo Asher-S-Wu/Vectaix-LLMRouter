@@ -3,17 +3,19 @@
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 
-import { logoutAction } from "@/features/admin/actions";
-
 import { LogoutIcon } from "./icons";
 
-export function LogoutButton() {
+interface LogoutButtonProps {
+  action: () => Promise<{ ok: boolean }>;
+}
+
+export function LogoutButton({ action }: Readonly<LogoutButtonProps>) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   function logout() {
     startTransition(async () => {
-      const result = await logoutAction();
+      const result = await action();
       if (result.ok) {
         router.replace("/login");
         router.refresh();
