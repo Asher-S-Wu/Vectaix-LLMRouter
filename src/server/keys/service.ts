@@ -133,7 +133,7 @@ export async function authenticateProxyKey(
   const candidate = rawKey.trim();
 
   if (!candidate.startsWith(RAW_KEY_PREFIX) || candidate.length < 20) {
-    return null;
+    return false;
   }
 
   const collection = await getProxyKeyCollection();
