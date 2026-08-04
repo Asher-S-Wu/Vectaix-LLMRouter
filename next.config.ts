@@ -6,11 +6,11 @@ const contentSecurityPolicy = [
   "form-action 'self'",
   "frame-ancestors 'none'",
   "object-src 'none'",
-  "script-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://cloudflareinsights.com",
   "worker-src 'self' blob:",
 ].join("; ");
 
@@ -33,12 +33,7 @@ const nextConfig: NextConfig = {
   compress: false,
   poweredByHeader: false,
   async headers() {
-    return [
-      { source: "/login", headers: securityHeaders },
-      { source: "/dashboard/:path*", headers: securityHeaders },
-      { source: "/keys/:path*", headers: securityHeaders },
-      { source: "/settings/:path*", headers: securityHeaders },
-    ];
+    return [{ source: "/:path*", headers: securityHeaders }];
   },
 };
 
