@@ -35,7 +35,7 @@ function formText(formData: FormData, name: string): string {
   return typeof value === "string" ? value : "";
 }
 
-function actionError(error: unknown): AdminActionResult {
+function actionError<T = undefined>(error: unknown): AdminActionResult<T> {
   if (error instanceof AdminAuthenticationError) {
     return { ok: false, message: "登录状态已失效，请重新登录" };
   }

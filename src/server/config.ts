@@ -12,6 +12,8 @@ export interface AppConfig {
 
 let cachedConfig: AppConfig | undefined;
 
+const MONGO_DATABASE = "vectaix";
+
 function required(name: string): string {
   const value = process.env[name]?.trim();
 
@@ -22,35 +24,15 @@ function required(name: string): string {
   return value;
 }
 
-function databaseNameFromUri(uri: string): string {
+function validateMongoUri(uri: string): void {
   if (!/^mongodb(?:\+srv)?:\/\//i.test(uri)) {
     throw new Error("MONGO_URI 必须是有效的 MongoDB 连接地址");
   }
 
-  let parsed: URL;
-
   try {
-    parsed = new URL(uri);
+    new URL(uri);
   } catch {
     throw new Error("MONGO_URI 必须是有效的 MongoDB 连接地址");
-  }
-
-  const encodedName = parsed.pathname.replace(/^\//, "");
-
-  if (!encodedName || encodedName.includes("/")) {
-    throw new Error("MONGO_URI 必须包含数据库名称");
-  }
-
-  try {
-    const databaseName = decodeURIComponent(encodedName).trim();
-
-    if (!databaseName) {
-      throw new Error("MONGO_URI 必须包含数据库名称");
-    }
-
-    return databaseName;
-  } catch {
-    throw new Error("MONGO_URI 中的数据库名称无效");
   }
 }
 
@@ -75,6 +57,8 @@ export function getConfig(): AppConfig {
   const sessionSecret = required("SESSION_SECRET");
   const port = parsePort(required("PORT"));
 
+  validateMongoUri(mongoUri);
+
   if (adminPassword.length < 16) {
     throw new Error("ADMIN_PASSWORD 至少需要 16 个字符");
   }
@@ -85,7 +69,7 @@ export function getConfig(): AppConfig {
 
   cachedConfig = Object.freeze({
     mongoUri,
-    mongoDatabase: databaseNameFromUri(mongoUri),
+    mongoDatabase: MONGO_DATABASE,
     openRouterApiKey,
     openRouterBaseUrl: "https://openrouter.ai/api/v1",
     adminPassword,
