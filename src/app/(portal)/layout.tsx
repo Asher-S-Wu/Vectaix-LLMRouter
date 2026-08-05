@@ -1,12 +1,11 @@
 import { ConsoleShell } from "@/components/console-shell";
 import type { ConsoleNavItem } from "@/components/console-nav";
-import { BookIcon, KeyIcon } from "@/components/icons";
 import { userLogoutAction } from "@/features/portal/actions";
 import { getCurrentUser } from "@/server/portal/queries";
 
 const navigation: ConsoleNavItem[] = [
-  { href: "/portal/keys", label: "我的密钥", shortLabel: "密钥", icon: KeyIcon },
-  { href: "/portal/guide", label: "接入指南", shortLabel: "指南", icon: BookIcon },
+  { href: "/portal/keys", label: "我的密钥", shortLabel: "密钥", icon: "key" },
+  { href: "/portal/guide", label: "接入指南", shortLabel: "指南", icon: "book" },
 ];
 
 export default async function PortalLayout({ children }: Readonly<{ children: React.ReactNode }>) {
