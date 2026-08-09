@@ -2,7 +2,6 @@
   "name": "vectaix-relay",
   "version": "1.0.0",
   "private": true,
-  "packageManager": "npm@11.12.1",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
