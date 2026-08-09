@@ -112,7 +112,7 @@ function AdminLoginForm() {
       <button className="button button-primary login-submit" disabled={pending} type="submit">
         {pending ? "正在验证…" : "进入管理控制台"}
       </button>
-      <p className="auth-alt">管理密码在服务器的环境变量中设置，登录状态保存 12 小时。</p>
+      <p className="auth-alt">管理密码在服务器的环境变量中设置，登录状态保存 30 天。</p>
     </form>
   );
 }

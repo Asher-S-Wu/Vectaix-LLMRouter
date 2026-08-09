@@ -9,7 +9,7 @@ import { cookies } from "next/headers";
 import { getConfig } from "@/server/config";
 
 export const ADMIN_SESSION_COOKIE = "__Host-vectaix_admin";
-export const ADMIN_SESSION_SECONDS = 12 * 60 * 60;
+export const ADMIN_SESSION_SECONDS = 30 * 24 * 60 * 60;
 export const USER_SESSION_COOKIE = "__Host-vectaix_user";
 export const USER_SESSION_SECONDS = 30 * 24 * 60 * 60;
 
