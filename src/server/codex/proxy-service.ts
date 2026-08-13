@@ -30,6 +30,12 @@ const RESPONSE_FIELDS = new Set([
   "client_metadata",
 ]);
 
+const STATEFUL_RESPONSE_FIELDS = new Set([
+  "conversation",
+  "previous_response_id",
+  "prompt",
+]);
+
 const SERVER_REFERENCE_FIELDS = new Set([
   "file_id",
   "vector_store_ids",
@@ -331,11 +337,27 @@ function normalizeRequestBody(
     return proxyError(400, "Request body must be a JSON object");
   }
 
-  for (const field of Object.keys(value)) {
-    if (!RESPONSE_FIELDS.has(field)) {
+  for (const field of [...STATEFUL_RESPONSE_FIELDS, ...SERVER_REFERENCE_FIELDS]) {
+    if (field in value) {
       return proxyError(400, `Unsupported request field: ${field}`);
     }
   }
+
+  if (
+    "container" in value &&
+    typeof value.container === "string" &&
+    value.container !== "auto"
+  ) {
+    return proxyError(400, "Server-side object references are not supported");
+  }
+
+  if (value.background === true) {
+    return proxyError(400, "Background responses are not supported");
+  }
+
+  const supportedFields = Object.fromEntries(
+    Object.entries(value).filter(([field]) => RESPONSE_FIELDS.has(field)),
+  );
 
   if (typeof value.model !== "string" || !value.model.trim()) {
     return proxyError(400, "Request body must include a model");
@@ -389,7 +411,7 @@ function normalizeRequestBody(
   return {
     downstreamStream,
     body: {
-      ...value,
+      ...supportedFields,
       input,
       instructions: value.instructions ?? "",
       stream: true,
