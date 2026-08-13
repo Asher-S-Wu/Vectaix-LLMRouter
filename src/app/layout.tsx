@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     default: "Vectaix · AI 中转站",
     template: "%s · Vectaix",
   },
-  description: "Vectaix 是一个开箱即用的 OpenRouter 中转站：注册账户、创建密钥，换一个地址就能用上全部模型，对话内容不会被查看或保存。",
+  description: "通过 Vectaix 中转地址和设备密钥使用 OpenRouter 模型。",
   icons: { icon: "/icon.svg" },
   robots: {
     index: false,

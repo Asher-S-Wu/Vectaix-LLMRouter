@@ -129,7 +129,7 @@ export function KeyManager({
       <section className="key-create surface">
         <div className="key-create-copy">
           <h2>创建新密钥</h2>
-          <p>建议按设备命名，比如“家里的电脑”或“手机”，以后需要移除时能一眼找到。</p>
+          <p>按设备命名，方便以后单独停用。</p>
         </div>
         <form className="key-create-form" onSubmit={createKey}>
           <div className="field-group">
@@ -144,14 +144,14 @@ export function KeyManager({
         <section aria-live="polite" className="key-reveal surface">
           <div className="key-reveal-copy">
             <span className="reveal-label">创建成功</span>
-            <h2>“{revealedKey.name}”的密钥已生成</h2>
-            <p>现在把它复制到对应设备上。之后需要时，随时可以回到这里再次查看和复制。</p>
+            <h2>“{revealedKey.name}”的密钥</h2>
+            <p>复制到对应设备即可。</p>
           </div>
           <div className="secret-line">
             <code>{revealedKey.key}</code>
             <CopyButton label="复制完整密钥" value={revealedKey.key} />
           </div>
-          <button className="reveal-close" onClick={() => { setRevealedKey(null); setMessage(null); }} type="button">好的，知道了</button>
+          <button className="reveal-close" onClick={() => { setRevealedKey(null); setMessage(null); }} type="button">收起密钥</button>
         </section>
       ) : null}
 
@@ -210,14 +210,14 @@ export function KeyManager({
                         <code>{viewingKey.key}</code>
                         <CopyButton label="复制完整密钥" value={viewingKey.key} />
                       </div>
-                      <p className="key-view-note">看完记得收好——任何拿到完整密钥的人都能通过中转站使用模型。</p>
+                      <p className="key-view-note">请勿分享完整密钥。</p>
                     </div>
                   </div>
                 ) : null}
               </div>
             ))}
           </div>
-        ) : <EmptyState title="还没有密钥" description="先为你的电脑或手机创建一把，密钥可以随时查看和复制。" />}
+        ) : <EmptyState title="还没有密钥" description="先为一台设备创建密钥。" />}
       </section>
     </>
   );

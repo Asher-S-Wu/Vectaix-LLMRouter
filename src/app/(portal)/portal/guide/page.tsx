@@ -21,13 +21,13 @@ export default async function GuidePage() {
   return (
     <div className="page-wrap settings-page">
       <PageHeading
-        description={`你好，${user.username}！把下面的中转地址和你创建的密钥填进 AI 软件，就能开始使用了。`}
+        description={`${user.username}，填写地址和密钥即可开始使用。`}
         title="接入指南"
       />
 
       <section className="proxy-address surface">
         <h2>中转地址</h2>
-        <p>所有支持 OpenAI 接口的软件都填这个地址，不需要在后面再加 <code>/v1</code>。</p>
+        <p>直接填入软件，无需再加 <code>/v1</code>。</p>
         <div className="address-value">
           <code>{proxyBaseUrl}</code>
           <CopyButton label="复制地址" value={proxyBaseUrl} />
@@ -40,11 +40,11 @@ export default async function GuidePage() {
           <div className="guide-steps">
             <div className="guide-step">
               <span>1</span>
-              <div><strong>服务器地址（Base URL）</strong><p>填上方这个中转地址。</p></div>
+              <div><strong>服务器地址（Base URL）</strong><p>填写上方中转地址。</p></div>
             </div>
             <div className="guide-step">
               <span>2</span>
-              <div><strong>密钥（API Key）</strong><p>填“我的密钥”页面创建的密钥，忘记的话可以回去随时查看复制。</p></div>
+              <div><strong>密钥（API Key）</strong><p>填写“我的密钥”页中的设备密钥。</p></div>
             </div>
           </div>
           <div className="code-example">
@@ -55,9 +55,11 @@ export default async function GuidePage() {
 
         <section className="surface security-note">
           <h2>使用须知</h2>
-          <p>你的密钥只属于你的账户，请按设备分开创建，哪把不用了就及时移除。</p>
-          <p>中转只负责转发请求，不会保存你的聊天内容，也不会保存路径、模型、用量等使用记录。</p>
-          <p>可用模型范围由管理员统一设置。如果某个模型突然无法使用，可以到<Link className="text-link" href="/portal/keys">我的密钥</Link>页查看你的可用模型清单。</p>
+          <ul className="security-points">
+            <li>密钥请按设备分别创建，不再使用时及时移除。</li>
+            <li>中转不保存对话和使用记录。</li>
+            <li>模型不可用时，到<Link className="text-link" href="/portal/keys">我的密钥</Link>查看权限清单。</li>
+          </ul>
         </section>
       </div>
     </div>

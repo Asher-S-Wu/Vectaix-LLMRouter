@@ -20,15 +20,15 @@ export default async function MyKeysPage() {
 
   const modelSummary =
     user.modelMode === "all"
-      ? { chipClass: "model-chip is-all", chipText: "全部模型", note: "你的账户当前不限模型，OpenRouter 上的所有模型都可以使用。" }
+      ? { chipClass: "model-chip is-all", chipText: "全部模型", note: "当前可使用全部模型。" }
       : user.modelMode === "allow"
-        ? { chipClass: "model-chip is-limited", chipText: `仅允许 ${user.models.length} 个`, note: "管理员为你的账户设置了模型白名单，只有清单里的模型可以使用。" }
-        : { chipClass: "model-chip is-limited", chipText: `排除 ${user.models.length} 个`, note: "清单里的模型对你的账户不可用，其余模型都可以正常使用。" };
+        ? { chipClass: "model-chip is-limited", chipText: `仅允许 ${user.models.length} 个`, note: "只能使用清单内的模型。" }
+        : { chipClass: "model-chip is-limited", chipText: `排除 ${user.models.length} 个`, note: "清单内的模型不可用。" };
 
   return (
     <div className="page-wrap keys-page">
       <PageHeading
-        description="给每台设备发一把独立的密钥，随时查看复制，不用了随时可以移除。"
+        description="按设备创建、查看和停用密钥。"
         title="我的密钥"
       />
 
@@ -36,7 +36,7 @@ export default async function MyKeysPage() {
         <div className="my-models-summary">
           <div>
             <h2>我的可用模型</h2>
-            <p>{modelSummary.note}模型权限由管理员统一设置。</p>
+            <p>{modelSummary.note}</p>
           </div>
           <span className={modelSummary.chipClass}>{modelSummary.chipText}</span>
         </div>

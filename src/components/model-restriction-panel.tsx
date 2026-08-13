@@ -24,17 +24,17 @@ const MODE_OPTIONS: ReadonlyArray<{
   {
     value: "all",
     title: "全部可用",
-    description: "不限制，能用 OpenRouter 上的所有模型",
+    description: "不限制模型",
   },
   {
     value: "allow",
     title: "仅允许选中的",
-    description: "只有勾选的模型能用，其余一律拒绝",
+    description: "只允许勾选项",
   },
   {
     value: "exclude",
     title: "排除选中的",
-    description: "勾选的模型不能用，其余都能用",
+    description: "禁用勾选项",
   },
 ];
 
@@ -138,10 +138,10 @@ export function ModelRestrictionPanel({
 
   const saveHint =
     mode === "all"
-      ? "保存后，这把密钥可以使用全部模型。"
+      ? "将允许全部模型。"
       : mode === "allow"
-        ? `保存后，这把密钥只能使用选中的 ${selected.size} 个模型。`
-        : `保存后，选中的 ${selected.size} 个模型将被这把密钥禁用。`;
+        ? `将允许 ${selected.size} 个模型。`
+        : `将禁用 ${selected.size} 个模型。`;
 
   return (
     <div className="model-panel">
@@ -275,7 +275,7 @@ export function ModelRestrictionPanel({
         </>
       ) : (
         <p className="model-all-note">
-          这把密钥当前不限模型。如果想控制它能用哪些模型，请选择上面另外两种模式。
+          当前不限制模型。
         </p>
       )}
 

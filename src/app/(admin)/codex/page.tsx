@@ -29,7 +29,7 @@ export default async function CodexPage() {
     <div className="page-wrap codex-page">
       <PageHeading
         action={<span className="codex-private-chip"><i />仅超级管理员</span>}
-        description="连接你自己的 Codex 账户，查看套餐额度，并为自己的设备签发独立密钥。"
+        description="连接个人 Codex 账户并管理专用密钥。"
         title="Codex 反代"
       />
       <CodexAdmin

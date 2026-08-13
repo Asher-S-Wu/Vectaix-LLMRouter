@@ -18,7 +18,7 @@ export function PageSkeleton() {
     <div aria-busy="true" aria-label="正在加载控制台数据" className="page-wrap skeleton-page">
       <div className="skeleton skeleton-heading" />
       <div className="stat-grid">
-        {Array.from({ length: 3 }, (_, index) => <div className="skeleton skeleton-card" key={index} />)}
+        {Array.from({ length: 4 }, (_, index) => <div className="skeleton skeleton-card" key={index} />)}
       </div>
       <div className="skeleton skeleton-panel" />
     </div>

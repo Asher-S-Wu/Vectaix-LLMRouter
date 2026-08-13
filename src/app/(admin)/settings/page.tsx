@@ -39,14 +39,14 @@ export default async function SettingsPage() {
   return (
     <div className="page-wrap settings-page">
       <PageHeading
-        description="把这个中转地址告诉你的用户，配合他们自己创建的密钥就能开始使用。"
+        description="复制中转地址并检查服务状态。"
         title="接入设置"
         action={<span className="heading-note"><i />检查于 {formatDate(status.checkedAt)}</span>}
       />
 
       <section className="proxy-address surface">
         <h2>中转地址</h2>
-        <p>所有支持 OpenAI 接口的软件都填这个地址，不需要在后面再加 <code>/v1</code>。</p>
+        <p>直接填入软件，无需再加 <code>/v1</code>。</p>
         <div className="address-value">
           <code>{proxyBaseUrl}</code>
           <CopyButton label="复制地址" value={proxyBaseUrl} />
@@ -59,11 +59,11 @@ export default async function SettingsPage() {
           <div className="guide-steps">
             <div className="guide-step">
               <span>1</span>
-              <div><strong>服务器地址（Base URL）</strong><p>填上方这个中转地址。</p></div>
+              <div><strong>服务器地址（Base URL）</strong><p>填写上方中转地址。</p></div>
             </div>
             <div className="guide-step">
               <span>2</span>
-              <div><strong>密钥（API Key）</strong><p>填用户在“我的密钥”页面创建的密钥，不要填 OpenRouter 的真实密钥。</p></div>
+              <div><strong>密钥（API Key）</strong><p>填写用户自己的设备密钥。</p></div>
             </div>
           </div>
           <div className="code-example">
@@ -85,14 +85,15 @@ export default async function SettingsPage() {
 
         <section className="surface security-note">
           <h2>密钥安全</h2>
-          <p>你的设备只保存代理密钥；OpenRouter 真实密钥存放在服务器的环境变量里，不会进入浏览器，也不会存进数据库。</p>
-          <p>中转只负责转发请求，不会保存你的聊天内容，也不会保存路径、模型、用量等使用记录。</p>
-          <p>建议使用普通的推理密钥，并在 OpenRouter 里设置好你能接受的消费上限，不要使用管理级密钥。</p>
-          <p className="scope-note">中转只改变请求的网络出口，无法改变 OpenRouter 账户、账单或模型供应商本身的地区规则。</p>
+          <ul className="security-points">
+            <li>OpenRouter 密钥仅保存在服务器，中转不保存对话和使用记录。</li>
+            <li>建议使用普通推理密钥，并设置可接受的消费上限。</li>
+          </ul>
+          <p className="scope-note">中转只改变网络出口，不改变账户、账单或模型供应商的地区规则。</p>
         </section>
 
         <section className="surface session-card">
-          <div><h2>管理会话</h2><p>退出后，这台设备需要重新输入密码才能进入控制台。</p></div>
+          <div><h2>管理会话</h2><p>退出当前设备的管理登录。</p></div>
           <LogoutButton action={logoutAction} />
         </section>
       </div>

@@ -21,7 +21,7 @@ export default async function AdminKeysPage() {
   return (
     <div className="page-wrap keys-page">
       <PageHeading
-        description="这是你自己使用的密钥，和用户的密钥互不影响，也不受模型权限限制。"
+        description="管理你自己的设备密钥，不受用户模型权限限制。"
         title="我的密钥"
       />
       <KeyManager

@@ -25,9 +25,8 @@ export default async function RegisterPage() {
         <section className="login-card surface">
           <span aria-hidden="true" className="brand-mark brand-mark-large">V</span>
           <h1>创建账户</h1>
-          <p>注册后即可创建自己的设备密钥，马上开始使用。</p>
+          <p>注册后即可创建设备密钥。</p>
           <RegisterForm />
-          <p className="login-note">可用模型范围由管理员统一设置，注册后可在“我的密钥”页查看。</p>
         </section>
         <Link className="login-back" href="/login">已有账户？直接登录</Link>
       </div>

@@ -145,7 +145,7 @@ export function UserManager({ initialUsers }: Readonly<{ initialUsers: AdminUser
               </div>
             ))}
           </div>
-        ) : <EmptyState title="还没有用户" description="把注册链接分享给需要使用的人，他们注册后会出现在这里。" />}
+        ) : <EmptyState title="还没有用户" description="新账户注册后会显示在这里。" />}
       </section>
     </>
   );

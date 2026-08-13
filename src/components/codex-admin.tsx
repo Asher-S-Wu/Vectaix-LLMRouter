@@ -315,7 +315,7 @@ export function CodexAdmin({
         <span className="codex-risk-mark">!</span>
         <div>
           <strong>非官方个人工具 · 仅限本人使用</strong>
-          <p>不要把这个反代地址、Codex 专用密钥或账户额度分享给任何人。向他人提供使用可能违反服务规定，产生的用量也会全部计入你的账户。</p>
+          <p>请勿分享反代地址、专用密钥或账户额度。</p>
         </div>
       </section>
 
@@ -370,7 +370,7 @@ export function CodexAdmin({
             <div className="codex-device-instructions">
               <span className="codex-countdown">剩余 {formatCountdown(remainingSeconds)}</span>
               <h3>在 OpenAI 页面完成确认</h3>
-              <p>打开下方链接，登录你自己的账户，输入左侧连接码。这个页面会自动等待连接结果。</p>
+              <p>打开确认页面，登录并输入连接码。</p>
               <div className="codex-device-actions">
                 <a className="button button-primary" href={device.verificationUrl} rel="noreferrer" target="_blank">打开确认页面</a>
                 <CopyButton label="复制确认链接" value={device.verificationUrl} />
@@ -383,7 +383,7 @@ export function CodexAdmin({
           <div className="codex-connect-empty">
             <div>
               <strong>连接你自己的 Codex 账户</strong>
-              <p>点击后会生成一个 15 分钟有效的连接码。整个过程只用于取得你本人账户的 Codex 访问资格。</p>
+              <p>生成一个 15 分钟有效的连接码。</p>
             </div>
             <button className="button button-primary" disabled={accountPending} onClick={startConnection} type="button">
               {accountPending ? "正在生成…" : "生成连接码"}
@@ -402,13 +402,12 @@ export function CodexAdmin({
           </div>
         </div>
         <div className="codex-quota-grid">
-          <UsageWindowCard emptyDescription={quota ? "当前套餐未设置单独的主额度窗口。" : "连接账户并刷新额度后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="主额度窗口" window={quota?.primaryWindow ?? null} />
-          <UsageWindowCard emptyDescription={quota ? "当前套餐不使用次级额度窗口。" : "连接账户并刷新额度后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="次额度窗口" window={quota?.secondaryWindow ?? null} />
-          <UsageWindowCard emptyDescription={quota ? "当前套餐未包含独立的代码审查额度。" : "连接账户并刷新额度后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="代码审查额度" window={quota?.codeReviewWindow ?? null} />
+          <UsageWindowCard emptyDescription={quota ? "套餐未提供此额度。" : "连接账户后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="主额度窗口" window={quota?.primaryWindow ?? null} />
+          <UsageWindowCard emptyDescription={quota ? "套餐未提供此额度。" : "连接账户后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="次额度窗口" window={quota?.secondaryWindow ?? null} />
+          <UsageWindowCard emptyDescription={quota ? "套餐未提供此额度。" : "连接账户后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="代码审查额度" window={quota?.codeReviewWindow ?? null} />
           <article className={`codex-quota-card codex-credit-card${quota?.credits ? "" : " is-empty"}`}>
             <span>附加额度 / 积分</span>
             <strong>{quota ? formatCredits(quota.credits) : "连接后显示"}</strong>
-            <p>{!quota ? "连接账户并刷新额度后显示。" : quota.credits?.overageLimitReached || quota.spendControlReached ? "附加用量上限已经触达。" : quota.credits?.unlimited ? "当前账户的附加额度不设上限。" : quota.credits?.hasCredits ? "这是账户当前可用的附加额度余额。" : quota.credits ? "当前没有可用的附加额度。" : "当前套餐不使用附加额度。"}</p>
             <dl className="codex-credit-status">
               <div><dt>附加额度</dt><dd>{!quota ? "连接后显示" : quota.credits ? quota.credits.hasCredits || quota.credits.unlimited ? "可用" : "不可用" : "不适用"}</dd></div>
               <div><dt>超额上限</dt><dd>{!quota ? "连接后显示" : quota.credits ? quota.credits.overageLimitReached ? "已触达" : "未触达" : "不适用"}</dd></div>
@@ -418,7 +417,7 @@ export function CodexAdmin({
           <article className="codex-quota-card codex-reset-card">
             <span>可用额度重置次数</span>
             <strong>{quota ? quota.resetCreditsAvailable ?? "不适用" : "连接后显示"}</strong>
-            <p>{!quota ? "连接账户并刷新额度后显示。" : quota.resetCreditsAvailable === null ? "当前套餐未启用额度重置功能。" : "这里只显示当前可用次数，不能在此页面发起重置。"}</p>
+            <p>{!quota ? "连接账户后显示。" : quota.resetCreditsAvailable === null ? "套餐未启用重置。" : "仅显示可用次数。"}</p>
           </article>
           <article className={`codex-quota-card codex-spend-card${quota?.spendControl ? "" : " is-empty"}`}>
             <span>附加用量控制</span>
@@ -435,12 +434,12 @@ export function CodexAdmin({
                 >
                   <i style={{ width: `${Math.min(100, Math.max(0, quota.spendControl.individualLimit.usedPercent))}%` }} />
                 </div>
-                <p>已用 {quota.spendControl.individualLimit.used} / 上限 {quota.spendControl.individualLimit.limit}，剩余 {quota.spendControl.individualLimit.remaining}。重置于 {formatDate(quota.spendControl.individualLimit.resetsAt)}。</p>
+                <p>{quota.spendControl.individualLimit.used} / {quota.spendControl.individualLimit.limit}，剩余 {quota.spendControl.individualLimit.remaining} · {formatDate(quota.spendControl.individualLimit.resetsAt)} 重置</p>
               </>
             ) : (
               <>
                 <strong>{!quota ? "连接后显示" : quota.spendControl ? quota.spendControlReached ? "已触达" : "未设置个人上限" : "不适用"}</strong>
-                <p>{!quota ? "连接账户并刷新额度后显示。" : quota.spendControl ? "当前账户未设置单独的个人用量上限。" : "当前套餐不使用附加用量控制。"}</p>
+                <p>{!quota ? "连接账户后显示。" : quota.spendControl ? "未设置个人上限。" : "套餐未启用此项。"}</p>
               </>
             )}
           </article>
@@ -453,8 +452,8 @@ export function CodexAdmin({
                 <section className="codex-additional-item" key={`${item.name}-${index}`}>
                   <h3>{item.name}</h3>
                   <div>
-                    <UsageWindowCard emptyDescription="当前额度项未设置主窗口。" label="主窗口" window={item.primaryWindow} />
-                    <UsageWindowCard emptyDescription="当前额度项不使用次级窗口。" label="次窗口" window={item.secondaryWindow} />
+                    <UsageWindowCard emptyDescription="未设置。" label="主窗口" window={item.primaryWindow} />
+                    <UsageWindowCard emptyDescription="未设置。" label="次窗口" window={item.secondaryWindow} />
                   </div>
                 </section>
               ))}
@@ -491,7 +490,7 @@ export function CodexAdmin({
       <section className="codex-key-create surface">
         <div>
           <h2>创建 Codex 专用密钥</h2>
-          <p>按设备分别创建，方便以后单独停用。这里的密钥不能用于 OpenRouter 中转。</p>
+          <p>按设备创建，仅用于 Codex 反代。</p>
         </div>
         <form onSubmit={createKey}>
           <div className="field-group">
@@ -507,7 +506,7 @@ export function CodexAdmin({
           <div className="key-reveal-copy">
             <span className="reveal-label">创建成功</span>
             <h2>“{createdKey.name}”的 Codex 密钥</h2>
-            <p>复制到对应设备中。任何拿到它的人都会消耗你连接账户的额度。</p>
+            <p>复制到对应设备，请勿分享。</p>
           </div>
           <div className="secret-line"><code>{createdKey.key}</code><CopyButton label="复制完整密钥" value={createdKey.key} /></div>
           <button className="reveal-close" onClick={() => setCreatedKey(null)} type="button">收起完整密钥</button>
@@ -550,7 +549,7 @@ export function CodexAdmin({
                     <div className="key-view">
                       <span className="field-label">“{item.name}”的完整 Codex 密钥</span>
                       <div className="secret-line"><code>{viewingKey.key}</code><CopyButton label="复制完整密钥" value={viewingKey.key} /></div>
-                      <p className="key-view-note">只保存在你自己的设备里，不要截图或发给他人。</p>
+                      <p className="key-view-note">请勿截图或分享。</p>
                     </div>
                   </div>
                 ) : null}
@@ -558,7 +557,7 @@ export function CodexAdmin({
             ))}
           </div>
         ) : (
-          <div className="empty-state"><span className="empty-icon">C</span><h2>还没有 Codex 专用密钥</h2><p>连接账户后，为你自己的设备分别创建密钥。</p></div>
+          <div className="empty-state"><span className="empty-icon">C</span><h3>还没有 Codex 专用密钥</h3><p>连接账户后即可创建。</p></div>
         )}
       </section>
     </div>

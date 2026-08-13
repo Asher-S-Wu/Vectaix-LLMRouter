@@ -25,7 +25,7 @@ export default async function LoginPage() {
         <section className="login-card surface">
           <span aria-hidden="true" className="brand-mark brand-mark-large">V</span>
           <h1>登录 Vectaix</h1>
-          <p>用户登录后创建和管理自己的密钥，管理员进入控制台管理用户。</p>
+          <p>选择用户或管理员身份登录。</p>
           <AuthTabs />
         </section>
         <Link className="login-back" href="/">返回首页</Link>
