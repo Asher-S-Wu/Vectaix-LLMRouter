@@ -152,6 +152,7 @@ interface CodexModelMetadata {
 
 interface CodexModelCatalog {
   bySlug: ReadonlyMap<string, CodexModelMetadata>;
+  catalogModels: readonly Record<string, unknown>[];
   listedModels: readonly CodexModelMetadata[];
 }
 
@@ -502,6 +503,7 @@ function parseCodexModelCatalog(payload: unknown): CodexModelCatalog {
   }
 
   const bySlug = new Map<string, CodexModelMetadata>();
+  const catalogModels: Record<string, unknown>[] = [];
   const listedModels: CodexModelMetadata[] = [];
 
   for (const value of payload.models) {
@@ -575,10 +577,11 @@ function parseCodexModelCatalog(payload: unknown): CodexModelCatalog {
       useResponsesLite: value.use_responses_lite === true,
     };
     bySlug.set(metadata.slug, metadata);
+    catalogModels.push(value);
     listedModels.push(metadata);
   }
 
-  return { bySlug, listedModels };
+  return { bySlug, catalogModels, listedModels };
 }
 
 async function loadCodexModelCatalog(
@@ -1108,7 +1111,11 @@ function passthroughBody(
   });
 }
 
-function parseSseEvent(eventName: string, dataLines: string[]): TerminalResponse | null {
+function parseSseEvent(
+  eventName: string,
+  dataLines: string[],
+  completedOutputItems: Map<number, Record<string, unknown>>,
+): TerminalResponse | null {
   if (dataLines.length === 0) return null;
 
   const data = dataLines.join("\n");
@@ -1126,6 +1133,17 @@ function parseSseEvent(eventName: string, dataLines: string[]): TerminalResponse
 
   const type = typeof payload.type === "string" ? payload.type : eventName;
   if (type === "error") throw new InvalidUpstreamResponseError();
+  if (type === "response.output_item.done") {
+    if (
+      !Number.isSafeInteger(payload.output_index) ||
+      (payload.output_index as number) < 0 ||
+      !isRecord(payload.item)
+    ) {
+      throw new InvalidUpstreamResponseError();
+    }
+    completedOutputItems.set(payload.output_index as number, payload.item);
+    return null;
+  }
   if (
     type !== "response.completed" &&
     type !== "response.failed" &&
@@ -1137,7 +1155,16 @@ function parseSseEvent(eventName: string, dataLines: string[]): TerminalResponse
   if (!isRecord(payload.response)) {
     throw new InvalidUpstreamResponseError();
   }
-  return { type, response: payload.response };
+  const response = { ...payload.response };
+  if (
+    completedOutputItems.size > 0 &&
+    (!Array.isArray(response.output) || response.output.length === 0)
+  ) {
+    response.output = [...completedOutputItems.entries()]
+      .sort(([left], [right]) => left - right)
+      .map(([, item]) => item);
+  }
+  return { type, response };
 }
 
 async function readTerminalResponse(
@@ -1148,9 +1175,14 @@ async function readTerminalResponse(
   let buffer = "";
   let eventName = "";
   let dataLines: string[] = [];
+  const completedOutputItems = new Map<number, Record<string, unknown>>();
 
   const dispatch = (): TerminalResponse | null => {
-    const terminal = parseSseEvent(eventName, dataLines);
+    const terminal = parseSseEvent(
+      eventName,
+      dataLines,
+      completedOutputItems,
+    );
     eventName = "";
     dataLines = [];
     return terminal;
@@ -1411,8 +1443,12 @@ export async function handleCodexModelsRequest(request: Request): Promise<Respon
   });
   copySafeUpstreamHeaders(upstream, headers);
   logCodexProxyStage(context, "models.completed", 200, upstream);
-  return new Response(JSON.stringify({ object: "list", data }), {
-    status: 200,
-    headers,
-  });
+  return new Response(
+    JSON.stringify({
+      object: "list",
+      data,
+      models: loadedCatalog.catalog.catalogModels,
+    }),
+    { status: 200, headers },
+  );
 }
