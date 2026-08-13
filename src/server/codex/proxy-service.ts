@@ -1327,10 +1327,14 @@ export async function handleCodexResponsesRequest(request: Request): Promise<Res
     }
   }
 
-  const contentType = upstream.headers.get("content-type")?.toLowerCase() ?? "";
-  if (!upstream.body || !contentType.includes("text/event-stream")) {
+  const contentType = upstream.headers.get("content-type")?.toLowerCase() ?? null;
+  const hasInvalidContentType =
+    contentType !== null && !contentType.includes("text/event-stream");
+  if (!upstream.body || hasInvalidContentType) {
     detach();
-    await upstream.body?.cancel().catch(() => undefined);
+    if (upstream.body) {
+      await upstream.body.cancel().catch(() => undefined);
+    }
     logCodexProxyStage(context, "responses.invalid_upstream", 502, upstream);
     return proxyError(502, "Invalid response from Codex upstream");
   }
