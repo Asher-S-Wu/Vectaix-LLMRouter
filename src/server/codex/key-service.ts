@@ -11,7 +11,7 @@ import {
 } from "@/server/codex/crypto";
 
 const KEY_NAME_MAX_LENGTH = 80;
-const RAW_KEY_PREFIX = "sk-codex-";
+const RAW_KEY_PREFIX = "sk-";
 const RAW_KEY_RANDOM_LENGTH = 43;
 
 export interface CodexProxyKeyItem {
@@ -104,7 +104,7 @@ export async function createCodexProxyKey(
   const document = {
     _id: new ObjectId(),
     name: normalizeName(name),
-    prefix: key.slice(0, 17),
+    prefix: key.slice(0, 13),
     keyHash: hashKey(key),
     keyEncrypted: encryptCodexProxyKey(key),
     createdAt: new Date(),

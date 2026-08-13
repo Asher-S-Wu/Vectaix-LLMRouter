@@ -34,7 +34,7 @@ interface CodexAdminProps {
 type Notice = { kind: "error" | "success"; text: string };
 
 function formatDate(value: string | null): string {
-  if (!value) return "未提供";
+  if (!value) return "暂无时间";
   return new Intl.DateTimeFormat("zh-CN", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -55,7 +55,7 @@ function formatPercent(value: number): string {
 }
 
 function formatWindow(minutes: number | null): string {
-  if (minutes === null) return "窗口时长未提供";
+  if (minutes === null) return "未设置周期";
   if (minutes % 1_440 === 0) return `${minutes / 1_440} 天窗口`;
   if (minutes % 60 === 0) return `${minutes / 60} 小时窗口`;
   return `${minutes} 分钟窗口`;
@@ -64,10 +64,10 @@ function formatWindow(minutes: number | null): string {
 function formatCredits(
   credits: NonNullable<CodexOverview["quota"]>["credits"],
 ): string {
-  if (!credits) return "未提供";
+  if (!credits) return "不适用";
   if (credits.unlimited) return "无限";
   if (!credits.hasCredits) return "无附加额度";
-  if (credits.balance === null) return "未提供";
+  if (credits.balance === null) return "余额待更新";
   return credits.balance;
 }
 
@@ -76,9 +76,13 @@ function messageFrom<T>(result: CodexActionResult<T>): Notice {
 }
 
 function UsageWindowCard({
+  emptyDescription,
+  emptyLabel = "不适用",
   label,
   window,
 }: Readonly<{
+  emptyDescription?: string;
+  emptyLabel?: string;
   label: string;
   window: NonNullable<CodexOverview["quota"]>["primaryWindow"];
 }>) {
@@ -86,8 +90,8 @@ function UsageWindowCard({
     return (
       <article className="codex-quota-card is-empty">
         <span>{label}</span>
-        <strong>未提供</strong>
-        <p>当前套餐没有返回这个额度窗口。</p>
+        <strong>{emptyLabel}</strong>
+        <p>{emptyDescription ?? "当前套餐未设置这个额度窗口。"}</p>
       </article>
     );
   }
@@ -110,7 +114,7 @@ function UsageWindowCard({
       >
         <i style={{ width: `${percent}%` }} />
       </div>
-      <p>{window.resetsAt ? `重置于 ${formatDate(window.resetsAt)}` : "未提供重置时间"}</p>
+      <p>{window.resetsAt ? `重置于 ${formatDate(window.resetsAt)}` : "此窗口不单独显示重置时间"}</p>
     </article>
   );
 }
@@ -336,7 +340,7 @@ export function CodexAdmin({
               <span aria-hidden="true" className="codex-account-avatar">C</span>
               <div>
                 <strong>{account.email ?? "已连接的 Codex 账户"}</strong>
-                <p>{quota?.planName ?? account.plan ?? "套餐名称未提供"}</p>
+                <p>{quota?.planName ?? account.plan ?? "当前套餐"}</p>
               </div>
             </div>
             <dl className="codex-account-meta">
@@ -397,23 +401,23 @@ export function CodexAdmin({
           </div>
         </div>
         <div className="codex-quota-grid">
-          <UsageWindowCard label="主额度窗口" window={quota?.primaryWindow ?? null} />
-          <UsageWindowCard label="次额度窗口" window={quota?.secondaryWindow ?? null} />
-          <UsageWindowCard label="代码审查额度" window={quota?.codeReviewWindow ?? null} />
+          <UsageWindowCard emptyDescription={quota ? "当前套餐未设置单独的主额度窗口。" : "连接账户并刷新额度后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="主额度窗口" window={quota?.primaryWindow ?? null} />
+          <UsageWindowCard emptyDescription={quota ? "当前套餐不使用次级额度窗口。" : "连接账户并刷新额度后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="次额度窗口" window={quota?.secondaryWindow ?? null} />
+          <UsageWindowCard emptyDescription={quota ? "当前套餐未包含独立的代码审查额度。" : "连接账户并刷新额度后显示。"} emptyLabel={quota ? "不适用" : "连接后显示"} label="代码审查额度" window={quota?.codeReviewWindow ?? null} />
           <article className={`codex-quota-card codex-credit-card${quota?.credits ? "" : " is-empty"}`}>
             <span>附加额度 / 积分</span>
-            <strong>{formatCredits(quota?.credits ?? null)}</strong>
-            <p>{quota?.credits?.overageLimitReached || quota?.spendControlReached ? "附加用量上限已经触达。" : quota?.credits?.unlimited ? "当前账户的附加额度不设上限。" : quota?.credits?.hasCredits ? "这是账户返回的当前可用余额。" : quota?.credits ? "当前没有可用的附加额度。" : "当前套餐没有返回附加额度信息。"}</p>
+            <strong>{quota ? formatCredits(quota.credits) : "连接后显示"}</strong>
+            <p>{!quota ? "连接账户并刷新额度后显示。" : quota.credits?.overageLimitReached || quota.spendControlReached ? "附加用量上限已经触达。" : quota.credits?.unlimited ? "当前账户的附加额度不设上限。" : quota.credits?.hasCredits ? "这是账户当前可用的附加额度余额。" : quota.credits ? "当前没有可用的附加额度。" : "当前套餐不使用附加额度。"}</p>
             <dl className="codex-credit-status">
-              <div><dt>附加额度</dt><dd>{quota?.credits ? quota.credits.hasCredits || quota.credits.unlimited ? "可用" : "不可用" : "未提供"}</dd></div>
-              <div><dt>超额上限</dt><dd>{quota?.credits ? quota.credits.overageLimitReached ? "已触达" : "未触达" : "未提供"}</dd></div>
-              <div><dt>用量控制</dt><dd>{quota?.spendControlReached === null || quota?.spendControlReached === undefined ? "未提供" : quota.spendControlReached ? "已触达" : "未触达"}</dd></div>
+              <div><dt>附加额度</dt><dd>{!quota ? "连接后显示" : quota.credits ? quota.credits.hasCredits || quota.credits.unlimited ? "可用" : "不可用" : "不适用"}</dd></div>
+              <div><dt>超额上限</dt><dd>{!quota ? "连接后显示" : quota.credits ? quota.credits.overageLimitReached ? "已触达" : "未触达" : "不适用"}</dd></div>
+              <div><dt>用量控制</dt><dd>{!quota ? "连接后显示" : quota.spendControlReached === null ? "不适用" : quota.spendControlReached ? "已触达" : "未触达"}</dd></div>
             </dl>
           </article>
           <article className="codex-quota-card codex-reset-card">
             <span>可用额度重置次数</span>
-            <strong>{quota?.resetCreditsAvailable ?? "未提供"}</strong>
-            <p>这里只显示账户返回的次数，不能在此页面发起重置。</p>
+            <strong>{quota ? quota.resetCreditsAvailable ?? "不适用" : "连接后显示"}</strong>
+            <p>{!quota ? "连接账户并刷新额度后显示。" : quota.resetCreditsAvailable === null ? "当前套餐未启用额度重置功能。" : "这里只显示当前可用次数，不能在此页面发起重置。"}</p>
           </article>
           <article className={`codex-quota-card codex-spend-card${quota?.spendControl ? "" : " is-empty"}`}>
             <span>附加用量控制</span>
@@ -434,8 +438,8 @@ export function CodexAdmin({
               </>
             ) : (
               <>
-                <strong>{quota?.spendControlReached ? "已触达" : "未提供"}</strong>
-                <p>{quota?.spendControl ? "账户没有返回具体的个人用量上限。" : "当前套餐没有返回附加用量控制信息。"}</p>
+                <strong>{!quota ? "连接后显示" : quota.spendControl ? quota.spendControlReached ? "已触达" : "未设置个人上限" : "不适用"}</strong>
+                <p>{!quota ? "连接账户并刷新额度后显示。" : quota.spendControl ? "当前账户未设置单独的个人用量上限。" : "当前套餐不使用附加用量控制。"}</p>
               </>
             )}
           </article>
@@ -448,8 +452,8 @@ export function CodexAdmin({
                 <section className="codex-additional-item" key={`${item.name}-${index}`}>
                   <h3>{item.name}</h3>
                   <div>
-                    <UsageWindowCard label="主窗口" window={item.primaryWindow} />
-                    <UsageWindowCard label="次窗口" window={item.secondaryWindow} />
+                    <UsageWindowCard emptyDescription="当前额度项未设置主窗口。" label="主窗口" window={item.primaryWindow} />
+                    <UsageWindowCard emptyDescription="当前额度项不使用次级窗口。" label="次窗口" window={item.secondaryWindow} />
                   </div>
                 </section>
               ))}
