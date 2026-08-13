@@ -99,6 +99,15 @@ export function BookIcon(props: IconProps) {
   );
 }
 
+export function TerminalIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect height="16" rx="2" stroke="currentColor" strokeWidth="1.6" width="19" x="2.5" y="4" />
+      <path d="m7 9 3 3-3 3M12.5 15H17" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.6" />
+    </IconBase>
+  );
+}
+
 export function SunIcon(props: IconProps) {
   return (
     <IconBase {...props}>

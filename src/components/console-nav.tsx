@@ -4,15 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
 
-import { BookIcon, DashboardIcon, KeyIcon, SettingsIcon, UsersIcon } from "./icons";
+import { BookIcon, DashboardIcon, KeyIcon, SettingsIcon, TerminalIcon, UsersIcon } from "./icons";
 
-export type ConsoleNavIcon = "book" | "dashboard" | "key" | "settings" | "users";
+export type ConsoleNavIcon = "book" | "dashboard" | "key" | "settings" | "terminal" | "users";
 
 const ICON_COMPONENTS: Record<ConsoleNavIcon, ComponentType<SVGProps<SVGSVGElement>>> = {
   book: BookIcon,
   dashboard: DashboardIcon,
   key: KeyIcon,
   settings: SettingsIcon,
+  terminal: TerminalIcon,
   users: UsersIcon,
 };
 

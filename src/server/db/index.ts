@@ -2,6 +2,9 @@ import { MongoClient, type Collection, type Db } from "mongodb";
 
 import { getConfig } from "@/server/config";
 import type {
+  CodexAuthSessionDocument,
+  CodexCredentialDocument,
+  CodexProxyKeyDocument,
   LoginAttemptDocument,
   ProxyKeyDocument,
   UserDocument,
@@ -51,6 +54,12 @@ export async function ensureIndexes(): Promise<void> {
       const users = database.collection<UserDocument>("users");
       const loginAttempts =
         database.collection<LoginAttemptDocument>("login_attempts");
+      const codexProxyKeys =
+        database.collection<CodexProxyKeyDocument>("codex_proxy_keys");
+      const codexCredentials =
+        database.collection<CodexCredentialDocument>("codex_credentials");
+      const codexAuthSessions =
+        database.collection<CodexAuthSessionDocument>("codex_auth_sessions");
 
       const legacyRequestLogs = await database
         .listCollections({ name: "request_logs" }, { nameOnly: true })
@@ -91,6 +100,22 @@ export async function ensureIndexes(): Promise<void> {
           { expiresAt: 1 },
           { name: "login_attempts_expiry", expireAfterSeconds: 0 },
         ),
+        codexProxyKeys.createIndex(
+          { keyHash: 1 },
+          { name: "codex_proxy_keys_key_hash_unique", unique: true },
+        ),
+        codexProxyKeys.createIndex(
+          { createdAt: -1 },
+          { name: "codex_proxy_keys_created_at" },
+        ),
+        codexCredentials.createIndex(
+          { status: 1 },
+          { name: "codex_credentials_status" },
+        ),
+        codexAuthSessions.createIndex(
+          { expiresAt: 1 },
+          { name: "codex_auth_sessions_expiry", expireAfterSeconds: 0 },
+        ),
       ]);
     })();
   }
@@ -129,7 +154,36 @@ export async function getLoginAttemptCollection(): Promise<
   );
 }
 
+export async function getCodexProxyKeyCollection(): Promise<
+  Collection<CodexProxyKeyDocument>
+> {
+  return (await getDatabase()).collection<CodexProxyKeyDocument>(
+    "codex_proxy_keys",
+  );
+}
+
+export async function getCodexCredentialCollection(): Promise<
+  Collection<CodexCredentialDocument>
+> {
+  return (await getDatabase()).collection<CodexCredentialDocument>(
+    "codex_credentials",
+  );
+}
+
+export async function getCodexAuthSessionCollection(): Promise<
+  Collection<CodexAuthSessionDocument>
+> {
+  return (await getDatabase()).collection<CodexAuthSessionDocument>(
+    "codex_auth_sessions",
+  );
+}
+
 export type {
+  CodexAuthSessionDocument,
+  CodexAuthSessionState,
+  CodexCredentialDocument,
+  CodexCredentialStatus,
+  CodexProxyKeyDocument,
   LoginAttemptDocument,
   ProxyKeyDocument,
   UserDocument,
