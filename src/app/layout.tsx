@@ -13,6 +13,9 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
+  other: {
+    google: "notranslate",
+  },
 };
 
 export const viewport: Viewport = {
@@ -27,7 +30,7 @@ const themeInitScript = `(function(){try{var c=localStorage.getItem("vectaix-the
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html lang="zh-CN" suppressHydrationWarning translate="no">
       <body>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
         {children}

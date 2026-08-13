@@ -1,16 +1,48 @@
 import "server-only";
 
+import { createHmac, randomBytes } from "node:crypto";
+
 import {
   getValidCodexAccessToken,
   markCodexAccountReconnectRequired,
 } from "@/server/codex/account-service";
+import {
+  fetchChatGptWithCloudflareCookies,
+} from "@/server/codex/chatgpt-cloudflare-fetch";
 import { authenticateCodexProxyKey } from "@/server/codex/key-service";
+import { getConfig } from "@/server/config";
 
 const CODEX_ORIGIN = "https://chatgpt.com";
 const CODEX_BASE_PATH = "/backend-api/codex";
 const CODEX_CLIENT_VERSION = "0.147.0";
 const CODEX_ORIGINATOR = "vectaix_llmrouter";
 const CODEX_USER_AGENT = "Vectaix-LLMRouter/1.0.0";
+const CODEX_MODELS_CACHE_MS = 30_000;
+const RESPONSES_LITE_HEADER = "x-openai-internal-codex-responses-lite";
+
+const RESERVED_CLIENT_METADATA_FIELDS = new Set([
+  "installation_id",
+  "session_id",
+  "thread_id",
+  "turn_id",
+  "window_id",
+  "request_kind",
+  "compaction",
+  "code_mode_tool_names",
+  "turn_started_at_unix_ms",
+  "forked_from_thread_id",
+  "parent_thread_id",
+  "parent_turn_id",
+  "subagent_kind",
+  "thread_source",
+  "sandbox",
+  "workspaces",
+  "x-codex-installation-id",
+  "x-codex-window-id",
+  "x-codex-turn-metadata",
+  "x-codex-parent-thread-id",
+  "x-openai-subagent",
+]);
 
 const RESPONSE_FIELDS = new Set([
   "model",
@@ -97,12 +129,161 @@ interface CodexCredentials {
   refreshVersion: number;
 }
 
+interface CodexRequestContext {
+  clientRequestId: string;
+  installationId: string;
+  sessionId: string;
+  startedAt: number;
+  threadId: string;
+  turnId: string;
+  turnMetadata: string;
+  windowId: string;
+}
+
+interface CodexModelMetadata {
+  defaultReasoningLevel: string | null;
+  defaultReasoningSummary: string | null;
+  serviceTiers: ReadonlySet<string>;
+  slug: string;
+  supportsParallelToolCalls: boolean;
+  supportsReasoningSummary: boolean;
+  useResponsesLite: boolean;
+}
+
+interface CodexModelCatalog {
+  bySlug: ReadonlyMap<string, CodexModelMetadata>;
+  listedModels: readonly CodexModelMetadata[];
+}
+
+interface CachedCodexModelCatalog {
+  accountId: string;
+  catalog: CodexModelCatalog;
+  expiresAt: number;
+}
+
+interface LoadedCodexModelCatalog {
+  catalog: CodexModelCatalog;
+  upstream: Response | null;
+}
+
+interface ParsedCodexRequest {
+  clientMetadata: Record<string, string>;
+  downstreamStream: boolean;
+  include: string[];
+  input: unknown[];
+  instructions: string;
+  modelSlug: string;
+  parallelToolCalls: boolean | undefined;
+  promptCacheKey: string | undefined;
+  reasoning: Record<string, unknown>;
+  serviceTier: string | undefined;
+  supportedFields: Record<string, unknown>;
+  toolChoice: string;
+  tools: unknown[];
+}
+
 interface TerminalResponse {
   response: Record<string, unknown>;
   type: "response.completed" | "response.failed" | "response.incomplete";
 }
 
 class InvalidUpstreamResponseError extends Error {}
+
+class InvalidModelCatalogError extends Error {}
+
+let cachedModelCatalog: CachedCodexModelCatalog | null = null;
+let cachedInstallationId: string | null = null;
+
+function formatUuid(bytes: Buffer): string {
+  const hex = bytes.toString("hex");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32),
+  ].join("-");
+}
+
+function getCodexInstallationId(): string {
+  if (cachedInstallationId) return cachedInstallationId;
+
+  const bytes = createHmac("sha256", getConfig().sessionSecret)
+    .update("vectaix-codex:installation-id:v1", "utf8")
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = (bytes[6]! & 0x0f) | 0x80;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+  cachedInstallationId = formatUuid(bytes);
+  return cachedInstallationId;
+}
+
+function createUuidV7(): string {
+  const bytes = randomBytes(16);
+  let unixMilliseconds = BigInt(Date.now());
+
+  for (let index = 5; index >= 0; index -= 1) {
+    bytes[index] = Number(unixMilliseconds & 0xffn);
+    unixMilliseconds >>= 8n;
+  }
+
+  bytes[6] = (bytes[6]! & 0x0f) | 0x70;
+  bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+
+  return formatUuid(bytes);
+}
+
+function createCodexRequestContext(): CodexRequestContext {
+  const requestId = createUuidV7();
+  const installationId = getCodexInstallationId();
+  const startedAt = Date.now();
+  const turnId = createUuidV7();
+  const windowId = `${requestId}:0`;
+  const turnMetadata = JSON.stringify({
+    installation_id: installationId,
+    session_id: requestId,
+    thread_id: requestId,
+    turn_id: turnId,
+    window_id: windowId,
+    request_kind: "turn",
+    turn_started_at_unix_ms: startedAt,
+  });
+
+  return {
+    clientRequestId: requestId,
+    installationId,
+    sessionId: requestId,
+    startedAt,
+    threadId: requestId,
+    turnId,
+    turnMetadata,
+    windowId,
+  };
+}
+
+function logCodexProxyStage(
+  context: CodexRequestContext,
+  stage: string,
+  status?: number,
+  upstream?: Response,
+): void {
+  console.info(
+    "[codex-proxy]",
+    JSON.stringify({
+      stage,
+      status: status ?? null,
+      durationMs: Date.now() - context.startedAt,
+      requestId: context.clientRequestId,
+      upstreamRequestId:
+        upstream?.headers.get("x-request-id") ??
+        upstream?.headers.get("x-oai-request-id") ??
+        null,
+      upstreamCfRay: upstream?.headers.get("cf-ray") ?? null,
+      contentType: upstream?.headers.get("content-type") ?? null,
+      contentEncoding: upstream?.headers.get("content-encoding") ?? null,
+    }),
+  );
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -178,9 +359,12 @@ async function loadCredentials(): Promise<CodexCredentials | Response> {
 function upstreamHeaders(
   credentials: CodexCredentials,
   accept: "application/json" | "text/event-stream",
+  context?: CodexRequestContext,
+  useResponsesLite = false,
 ): Headers {
   const headers = new Headers({
     Accept: accept,
+    "Accept-Encoding": "identity",
     Authorization: `Bearer ${credentials.accessToken}`,
     "ChatGPT-Account-ID": credentials.accountId,
     originator: CODEX_ORIGINATOR,
@@ -190,14 +374,27 @@ function upstreamHeaders(
   if (accept === "text/event-stream") {
     headers.set("Content-Type", "application/json");
   }
+  if (context) {
+    headers.set("session-id", context.sessionId);
+    headers.set("thread-id", context.threadId);
+    headers.set("x-client-request-id", context.clientRequestId);
+    headers.set("x-codex-turn-metadata", context.turnMetadata);
+    headers.set("x-codex-window-id", context.windowId);
+  }
+  if (useResponsesLite) {
+    headers.set(RESPONSES_LITE_HEADER, "true");
+  }
   return headers;
 }
 
 function copySafeUpstreamHeaders(upstream: Response, headers: Headers): void {
-  for (const name of ["x-request-id", "retry-after"] as const) {
-    const value = upstream.headers.get(name);
-    if (value) headers.set(name, value);
-  }
+  const requestId =
+    upstream.headers.get("x-request-id") ??
+    upstream.headers.get("x-oai-request-id");
+  if (requestId) headers.set("x-request-id", requestId);
+
+  const retryAfter = upstream.headers.get("retry-after");
+  if (retryAfter) headers.set("retry-after", retryAfter);
 }
 
 async function markReconnectRequired(
@@ -291,6 +488,175 @@ async function sanitizedUpstreamError(
   return new Response(JSON.stringify(sanitized), { status, headers });
 }
 
+function optionalCatalogString(value: unknown, field: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string" || !value.trim()) {
+    throw new InvalidModelCatalogError(`Invalid Codex model field: ${field}`);
+  }
+  return value;
+}
+
+function parseCodexModelCatalog(payload: unknown): CodexModelCatalog {
+  if (!isRecord(payload) || !Array.isArray(payload.models)) {
+    throw new InvalidModelCatalogError("Invalid Codex model catalog");
+  }
+
+  const bySlug = new Map<string, CodexModelMetadata>();
+  const listedModels: CodexModelMetadata[] = [];
+
+  for (const value of payload.models) {
+    if (!isRecord(value)) continue;
+    if (
+      typeof value.slug !== "string" ||
+      !value.slug.trim() ||
+      value.visibility !== "list" ||
+      value.supported_in_api !== true ||
+      bySlug.has(value.slug)
+    ) {
+      continue;
+    }
+
+    if (typeof value.supports_parallel_tool_calls !== "boolean") {
+      throw new InvalidModelCatalogError(
+        `Invalid Codex model field: ${value.slug}.supports_parallel_tool_calls`,
+      );
+    }
+    if (
+      value.use_responses_lite !== undefined &&
+      typeof value.use_responses_lite !== "boolean"
+    ) {
+      throw new InvalidModelCatalogError(
+        `Invalid Codex model field: ${value.slug}.use_responses_lite`,
+      );
+    }
+    if (
+      value.supports_reasoning_summary_parameter !== undefined &&
+      typeof value.supports_reasoning_summary_parameter !== "boolean"
+    ) {
+      throw new InvalidModelCatalogError(
+        `Invalid Codex model field: ${value.slug}.supports_reasoning_summary_parameter`,
+      );
+    }
+
+    const rawServiceTiers = value.service_tiers ?? [];
+    if (!Array.isArray(rawServiceTiers)) {
+      throw new InvalidModelCatalogError(
+        `Invalid Codex model field: ${value.slug}.service_tiers`,
+      );
+    }
+    const serviceTiers = new Set<string>();
+    for (const rawTier of rawServiceTiers) {
+      if (
+        !isRecord(rawTier) ||
+        typeof rawTier.id !== "string" ||
+        !rawTier.id.trim()
+      ) {
+        throw new InvalidModelCatalogError(
+          `Invalid Codex model field: ${value.slug}.service_tiers`,
+        );
+      }
+      serviceTiers.add(rawTier.id);
+    }
+
+    const metadata: CodexModelMetadata = {
+      defaultReasoningLevel: optionalCatalogString(
+        value.default_reasoning_level,
+        `${value.slug}.default_reasoning_level`,
+      ),
+      defaultReasoningSummary: optionalCatalogString(
+        value.default_reasoning_summary,
+        `${value.slug}.default_reasoning_summary`,
+      ),
+      serviceTiers,
+      slug: value.slug,
+      supportsParallelToolCalls: value.supports_parallel_tool_calls,
+      supportsReasoningSummary:
+        value.supports_reasoning_summary_parameter !== false,
+      useResponsesLite: value.use_responses_lite === true,
+    };
+    bySlug.set(metadata.slug, metadata);
+    listedModels.push(metadata);
+  }
+
+  return { bySlug, listedModels };
+}
+
+async function loadCodexModelCatalog(
+  credentials: CodexCredentials,
+  context: CodexRequestContext,
+  signal: AbortSignal,
+  forceRefresh: boolean,
+): Promise<LoadedCodexModelCatalog | Response> {
+  const now = Date.now();
+  if (
+    !forceRefresh &&
+    cachedModelCatalog?.accountId === credentials.accountId &&
+    cachedModelCatalog.expiresAt > now
+  ) {
+    return { catalog: cachedModelCatalog.catalog, upstream: null };
+  }
+  cachedModelCatalog = null;
+
+  const url = new URL(`${CODEX_BASE_PATH}/models`, CODEX_ORIGIN);
+  url.searchParams.set("client_version", CODEX_CLIENT_VERSION);
+  let upstream: Response;
+  logCodexProxyStage(context, "models.metadata.fetch.started");
+  try {
+    upstream = await fetchChatGptWithCloudflareCookies(url, {
+      method: "GET",
+      headers: upstreamHeaders(credentials, "application/json"),
+      cache: "no-store",
+      redirect: "manual",
+      signal,
+    });
+  } catch {
+    logCodexProxyStage(
+      context,
+      "models.metadata.fetch.failed",
+      signal.aborted ? 499 : 502,
+    );
+    return proxyError(
+      signal.aborted ? 499 : 502,
+      signal.aborted
+        ? "Client closed the request"
+        : "Unable to connect to Codex upstream",
+    );
+  }
+  logCodexProxyStage(
+    context,
+    "models.metadata.fetch.headers",
+    upstream.status,
+    upstream,
+  );
+
+  if (!upstream.ok) {
+    return sanitizedUpstreamError(upstream, credentials);
+  }
+
+  let payload: unknown;
+  try {
+    payload = await upstream.json();
+  } catch {
+    logCodexProxyStage(context, "models.metadata.read.failed", 502, upstream);
+    return proxyError(502, "Invalid response from Codex upstream", upstream);
+  }
+
+  let catalog: CodexModelCatalog;
+  try {
+    catalog = parseCodexModelCatalog(payload);
+  } catch {
+    logCodexProxyStage(context, "models.metadata.invalid_upstream", 502, upstream);
+    return proxyError(502, "Invalid response from Codex upstream", upstream);
+  }
+
+  cachedModelCatalog = {
+    accountId: credentials.accountId,
+    catalog,
+    expiresAt: Date.now() + CODEX_MODELS_CACHE_MS,
+  };
+  return { catalog, upstream };
+}
+
 function containsServerObjectReference(value: unknown): boolean {
   if (Array.isArray(value)) {
     return value.some(containsServerObjectReference);
@@ -330,9 +696,7 @@ function containsToolServerObjectReference(value: unknown): boolean {
   return false;
 }
 
-function normalizeRequestBody(
-  value: unknown,
-): { body: Record<string, unknown>; downstreamStream: boolean } | Response {
+function parseCodexRequestBody(value: unknown): ParsedCodexRequest | Response {
   if (!isRecord(value)) {
     return proxyError(400, "Request body must be a JSON object");
   }
@@ -355,19 +719,16 @@ function normalizeRequestBody(
     return proxyError(400, "Background responses are not supported");
   }
 
-  const supportedFields = Object.fromEntries(
-    Object.entries(value).filter(([field]) => RESPONSE_FIELDS.has(field)),
-  );
-
   if (typeof value.model !== "string" || !value.model.trim()) {
     return proxyError(400, "Request body must include a model");
   }
+  const modelSlug = value.model.trim();
 
   if (!("input" in value)) {
     return proxyError(400, "Request body must include input");
   }
 
-  let input: unknown;
+  let input: unknown[];
   if (typeof value.input === "string") {
     if (!value.input) {
       return proxyError(400, "Request input must not be empty");
@@ -400,23 +761,274 @@ function normalizeRequestBody(
     return proxyError(400, "Stored responses are not supported");
   }
 
+  if ("tools" in value && !Array.isArray(value.tools)) {
+    return proxyError(400, "Request tools must be an array");
+  }
+  const tools = Array.isArray(value.tools) ? value.tools : [];
+
   if (
     containsServerObjectReference(input) ||
-    containsToolServerObjectReference(value.tools)
+    containsToolServerObjectReference(tools)
   ) {
     return proxyError(400, "Server-side object references are not supported");
   }
 
-  const downstreamStream = value.stream === true;
+  if (
+    "tool_choice" in value &&
+    (typeof value.tool_choice !== "string" || !value.tool_choice)
+  ) {
+    return proxyError(400, "Request tool_choice must be a non-empty string");
+  }
+
+  if (
+    "parallel_tool_calls" in value &&
+    typeof value.parallel_tool_calls !== "boolean"
+  ) {
+    return proxyError(400, "Request parallel_tool_calls must be a boolean");
+  }
+  const parallelToolCalls = typeof value.parallel_tool_calls === "boolean"
+    ? value.parallel_tool_calls
+    : undefined;
+
+  if ("reasoning" in value && !isRecord(value.reasoning)) {
+    return proxyError(400, "Request reasoning must be an object");
+  }
+  const reasoning: Record<string, unknown> = isRecord(value.reasoning)
+    ? { ...value.reasoning }
+    : {};
+  if (
+    "effort" in reasoning &&
+    reasoning.effort !== null &&
+    (typeof reasoning.effort !== "string" || !reasoning.effort)
+  ) {
+    return proxyError(
+      400,
+      "Request reasoning.effort must be a non-empty string or null",
+    );
+  }
+  if (
+    "summary" in reasoning &&
+    reasoning.summary !== null &&
+    (typeof reasoning.summary !== "string" || !reasoning.summary)
+  ) {
+    return proxyError(
+      400,
+      "Request reasoning.summary must be a non-empty string or null",
+    );
+  }
+  if (
+    "context" in reasoning &&
+    reasoning.context !== null &&
+    (typeof reasoning.context !== "string" || !reasoning.context)
+  ) {
+    return proxyError(
+      400,
+      "Request reasoning.context must be a non-empty string or null",
+    );
+  }
+  if (reasoning.effort === null) delete reasoning.effort;
+  if (reasoning.context === null) delete reasoning.context;
+  if (reasoning.summary === null || reasoning.summary === "none") {
+    delete reasoning.summary;
+  }
+  if (reasoning.effort === "ultra") reasoning.effort = "max";
+
+  let include: string[];
+  if ("include" in value) {
+    if (
+      !Array.isArray(value.include) ||
+      value.include.some((item) => typeof item !== "string" || !item)
+    ) {
+      return proxyError(400, "Request include must be an array of strings");
+    }
+    include = [...value.include];
+  } else {
+    include = [];
+  }
+  if (!include.includes("reasoning.encrypted_content")) {
+    include.push("reasoning.encrypted_content");
+  }
+
+  if (
+    "prompt_cache_key" in value &&
+    (typeof value.prompt_cache_key !== "string" || !value.prompt_cache_key)
+  ) {
+    return proxyError(400, "Request prompt_cache_key must be a non-empty string");
+  }
+  const promptCacheKey = typeof value.prompt_cache_key === "string"
+    ? value.prompt_cache_key
+    : undefined;
+
+  if ("client_metadata" in value && !isRecord(value.client_metadata)) {
+    return proxyError(400, "Request client_metadata must be an object");
+  }
+  const clientMetadata: Record<string, string> = {};
+  if (isRecord(value.client_metadata)) {
+    for (const [field, fieldValue] of Object.entries(value.client_metadata)) {
+      if (typeof fieldValue !== "string") {
+        return proxyError(
+          400,
+          "Request client_metadata values must all be strings",
+        );
+      }
+      if (!RESERVED_CLIENT_METADATA_FIELDS.has(field)) {
+        clientMetadata[field] = fieldValue;
+      }
+    }
+  }
+  let serviceTier: string | undefined;
+  if ("service_tier" in value) {
+    if (typeof value.service_tier !== "string" || !value.service_tier) {
+      return proxyError(400, "Request service_tier must be a non-empty string");
+    }
+    if (value.service_tier !== "default") serviceTier = value.service_tier;
+  }
+
+  if (
+    "stream_options" in value &&
+    value.stream_options !== null &&
+    !isRecord(value.stream_options)
+  ) {
+    return proxyError(400, "Request stream_options must be an object or null");
+  }
+  if (
+    "text" in value &&
+    value.text !== null &&
+    !isRecord(value.text)
+  ) {
+    return proxyError(400, "Request text must be an object or null");
+  }
+
+  const supportedFields = Object.fromEntries(
+    Object.entries(value).filter(([field]) => RESPONSE_FIELDS.has(field)),
+  );
+
   return {
-    downstreamStream,
-    body: {
-      ...supportedFields,
-      input,
-      instructions: value.instructions ?? "",
-      stream: true,
-      store: false,
-    },
+    clientMetadata,
+    downstreamStream: value.stream === true,
+    include,
+    input,
+    instructions: typeof value.instructions === "string"
+      ? value.instructions
+      : "",
+    modelSlug,
+    parallelToolCalls,
+    promptCacheKey,
+    reasoning,
+    serviceTier,
+    supportedFields,
+    toolChoice: typeof value.tool_choice === "string"
+      ? value.tool_choice
+      : "auto",
+    tools,
+  };
+}
+
+function normalizeRequestBody(
+  parsed: ParsedCodexRequest,
+  context: CodexRequestContext,
+  model: CodexModelMetadata,
+): { body: Record<string, unknown>; downstreamStream: boolean } | Response {
+  if (parsed.modelSlug !== model.slug) {
+    return proxyError(400, "Requested Codex model is not available");
+  }
+  if (
+    parsed.parallelToolCalls === true &&
+    !model.supportsParallelToolCalls &&
+    !model.useResponsesLite
+  ) {
+    return proxyError(
+      400,
+      `Parallel tool calls are not supported by model ${model.slug}`,
+    );
+  }
+
+  const reasoning = { ...parsed.reasoning };
+  if (!model.supportsReasoningSummary && "summary" in reasoning) {
+    return proxyError(
+      400,
+      `Reasoning summary is not supported by model ${model.slug}`,
+    );
+  }
+  if (!("effort" in reasoning) && model.defaultReasoningLevel) {
+    reasoning.effort = model.defaultReasoningLevel === "ultra"
+      ? "max"
+      : model.defaultReasoningLevel;
+  }
+  if (
+    model.supportsReasoningSummary &&
+    !("summary" in reasoning) &&
+    model.defaultReasoningSummary &&
+    model.defaultReasoningSummary !== "none"
+  ) {
+    reasoning.summary = model.defaultReasoningSummary;
+  }
+  if (model.useResponsesLite) reasoning.context = "all_turns";
+
+  if (parsed.serviceTier && !model.serviceTiers.has(parsed.serviceTier)) {
+    return proxyError(
+      400,
+      `Service tier is not supported by model ${model.slug}`,
+    );
+  }
+
+  const clientMetadata = {
+    ...parsed.clientMetadata,
+    "x-codex-installation-id": context.installationId,
+    session_id: context.sessionId,
+    thread_id: context.threadId,
+    turn_id: context.turnId,
+    "x-codex-turn-metadata": context.turnMetadata,
+    "x-codex-window-id": context.windowId,
+  };
+
+  let upstreamInput: unknown[] = parsed.input;
+  let instructions = parsed.instructions;
+  let upstreamTools: unknown = parsed.tools;
+  let parallelToolCalls =
+    typeof parsed.parallelToolCalls === "boolean"
+      ? parsed.parallelToolCalls
+      : model.supportsParallelToolCalls;
+
+  if (model.useResponsesLite) {
+    const prefix: unknown[] = [
+      { type: "additional_tools", role: "developer", tools: parsed.tools },
+    ];
+    if (instructions) {
+      prefix.push({
+        type: "message",
+        role: "developer",
+        content: [{ type: "input_text", text: instructions }],
+      });
+    }
+    upstreamInput = [...prefix, ...parsed.input];
+    instructions = "";
+    upstreamTools = undefined;
+    parallelToolCalls = false;
+  }
+
+  const body: Record<string, unknown> = {
+    ...parsed.supportedFields,
+    model: model.slug,
+    input: upstreamInput,
+    instructions,
+    tools: upstreamTools,
+    tool_choice: parsed.toolChoice,
+    parallel_tool_calls: parallelToolCalls,
+    reasoning,
+    stream: true,
+    store: false,
+    include: parsed.include,
+    prompt_cache_key: parsed.promptCacheKey ?? context.sessionId,
+    client_metadata: clientMetadata,
+  };
+  if (upstreamTools === undefined) delete body.tools;
+  if (parsed.serviceTier === undefined) delete body.service_tier;
+  else body.service_tier = parsed.serviceTier;
+
+  return {
+    downstreamStream: parsed.downstreamStream,
+    body,
   };
 }
 
@@ -438,8 +1050,11 @@ function passthroughBody(
   body: ReadableStream<Uint8Array>,
   abortController: AbortController,
   detachAbortListener: () => void,
+  context: CodexRequestContext,
+  upstream: Response,
 ): ReadableStream<Uint8Array> {
   const reader = body.getReader();
+  let receivedFirstChunk = false;
 
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
@@ -447,12 +1062,33 @@ function passthroughBody(
         const { done, value } = await reader.read();
         if (done) {
           detachAbortListener();
+          logCodexProxyStage(
+            context,
+            "responses.stream.completed",
+            upstream.status,
+            upstream,
+          );
           controller.close();
           return;
+        }
+        if (!receivedFirstChunk) {
+          receivedFirstChunk = true;
+          logCodexProxyStage(
+            context,
+            "responses.stream.first_chunk",
+            upstream.status,
+            upstream,
+          );
         }
         controller.enqueue(value);
       } catch (error) {
         detachAbortListener();
+        logCodexProxyStage(
+          context,
+          "responses.stream.failed",
+          abortController.signal.aborted ? 499 : 502,
+          upstream,
+        );
         abortController.abort(error);
         await reader.cancel(error).catch(() => undefined);
         controller.error(error);
@@ -460,6 +1096,12 @@ function passthroughBody(
     },
     async cancel(reason) {
       detachAbortListener();
+      logCodexProxyStage(
+        context,
+        "responses.stream.cancelled",
+        499,
+        upstream,
+      );
       abortController.abort(reason);
       await reader.cancel(reason).catch(() => undefined);
     },
@@ -570,6 +1212,7 @@ function streamingResponse(
   upstream: Response,
   abortController: AbortController,
   detachAbortListener: () => void,
+  context: CodexRequestContext,
 ): Response {
   const headers = corsHeaders({
     "Cache-Control": "no-cache, no-transform",
@@ -579,7 +1222,13 @@ function streamingResponse(
   copySafeUpstreamHeaders(upstream, headers);
 
   return new Response(
-    passthroughBody(upstream.body!, abortController, detachAbortListener),
+    passthroughBody(
+      upstream.body!,
+      abortController,
+      detachAbortListener,
+      context,
+      upstream,
+    ),
     { status: upstream.status, headers },
   );
 }
@@ -598,35 +1247,81 @@ export async function handleCodexResponsesRequest(request: Request): Promise<Res
   } catch {
     return proxyError(400, "Request body must be valid JSON");
   }
-
-  const normalized = normalizeRequestBody(value);
-  if (normalized instanceof Response) return normalized;
+  const parsed = parseCodexRequestBody(value);
+  if (parsed instanceof Response) return parsed;
 
   const credentials = await loadCredentials();
   if (credentials instanceof Response) return credentials;
 
+  const context = createCodexRequestContext();
   const { controller, detach } = attachClientAbort(request);
+  const loadedCatalog = await loadCodexModelCatalog(
+    credentials,
+    context,
+    controller.signal,
+    false,
+  );
+  if (loadedCatalog instanceof Response) {
+    detach();
+    return loadedCatalog;
+  }
+  const model = loadedCatalog.catalog.bySlug.get(parsed.modelSlug);
+  if (!model) {
+    detach();
+    return proxyError(400, "Requested Codex model is not available");
+  }
+
+  const normalized = normalizeRequestBody(parsed, context, model);
+  if (normalized instanceof Response) {
+    detach();
+    return normalized;
+  }
+
   let upstream: Response;
+  logCodexProxyStage(context, "responses.fetch.started");
   try {
-    upstream = await fetch(new URL(`${CODEX_BASE_PATH}/responses`, CODEX_ORIGIN), {
-      method: "POST",
-      headers: upstreamHeaders(credentials, "text/event-stream"),
-      body: JSON.stringify(normalized.body),
-      cache: "no-store",
-      redirect: "manual",
-      signal: controller.signal,
-    });
+    upstream = await fetchChatGptWithCloudflareCookies(
+      new URL(`${CODEX_BASE_PATH}/responses`, CODEX_ORIGIN),
+      {
+        method: "POST",
+        headers: upstreamHeaders(
+          credentials,
+          "text/event-stream",
+          context,
+          model.useResponsesLite,
+        ),
+        body: JSON.stringify(normalized.body),
+        cache: "no-store",
+        redirect: "manual",
+        signal: controller.signal,
+      },
+    );
   } catch {
     detach();
     if (request.signal.aborted) {
+      logCodexProxyStage(context, "responses.fetch.failed", 499);
       return proxyError(499, "Client closed the request");
     }
+    logCodexProxyStage(context, "responses.fetch.failed", 502);
     return proxyError(502, "Unable to connect to Codex upstream");
   }
+  logCodexProxyStage(
+    context,
+    "responses.fetch.headers",
+    upstream.status,
+    upstream,
+  );
 
   if (!upstream.ok) {
     try {
-      return await sanitizedUpstreamError(upstream, credentials);
+      const response = await sanitizedUpstreamError(upstream, credentials);
+      logCodexProxyStage(
+        context,
+        "responses.completed",
+        response.status,
+        upstream,
+      );
+      return response;
     } finally {
       detach();
     }
@@ -636,13 +1331,26 @@ export async function handleCodexResponsesRequest(request: Request): Promise<Res
   if (!upstream.body || !contentType.includes("text/event-stream")) {
     detach();
     await upstream.body?.cancel().catch(() => undefined);
+    logCodexProxyStage(context, "responses.invalid_upstream", 502, upstream);
     return proxyError(502, "Invalid response from Codex upstream");
   }
 
   if (normalized.downstreamStream) {
-    return streamingResponse(upstream, controller, detach);
+    logCodexProxyStage(
+      context,
+      "responses.stream.opened",
+      upstream.status,
+      upstream,
+    );
+    return streamingResponse(upstream, controller, detach, context);
   }
 
+  logCodexProxyStage(
+    context,
+    "responses.read.started",
+    upstream.status,
+    upstream,
+  );
   try {
     const terminal = await readTerminalResponse(upstream.body);
     detach();
@@ -651,12 +1359,15 @@ export async function handleCodexResponsesRequest(request: Request): Promise<Res
       "Content-Type": "application/json",
     });
     copySafeUpstreamHeaders(upstream, headers);
+    logCodexProxyStage(context, "responses.completed", 200, upstream);
     return new Response(JSON.stringify(terminal.response), { status: 200, headers });
   } catch {
     detach();
     if (request.signal.aborted) {
+      logCodexProxyStage(context, "responses.read.failed", 499, upstream);
       return proxyError(499, "Client closed the request");
     }
+    logCodexProxyStage(context, "responses.read.failed", 502, upstream);
     return proxyError(502, "Invalid response from Codex upstream");
   }
 }
@@ -668,71 +1379,34 @@ export async function handleCodexModelsRequest(request: Request): Promise<Respon
   const credentials = await loadCredentials();
   if (credentials instanceof Response) return credentials;
 
+  const context = createCodexRequestContext();
   const { controller, detach } = attachClientAbort(request);
-  let upstream: Response;
-  try {
-    const url = new URL(`${CODEX_BASE_PATH}/models`, CODEX_ORIGIN);
-    url.searchParams.set("client_version", CODEX_CLIENT_VERSION);
-    upstream = await fetch(url, {
-      method: "GET",
-      headers: upstreamHeaders(credentials, "application/json"),
-      cache: "no-store",
-      redirect: "manual",
-      signal: controller.signal,
-    });
-  } catch {
-    detach();
-    if (request.signal.aborted) {
-      return proxyError(499, "Client closed the request");
-    }
-    return proxyError(502, "Unable to connect to Codex upstream");
-  }
-
-  if (!upstream.ok) {
-    try {
-      return await sanitizedUpstreamError(upstream, credentials);
-    } finally {
-      detach();
-    }
-  }
-
-  let payload: unknown;
-  try {
-    payload = await upstream.json();
-  } catch {
-    detach();
-    if (request.signal.aborted) {
-      return proxyError(499, "Client closed the request");
-    }
-    return proxyError(502, "Invalid response from Codex upstream");
-  }
+  const loadedCatalog = await loadCodexModelCatalog(
+    credentials,
+    context,
+    controller.signal,
+    true,
+  );
   detach();
-  if (!isRecord(payload) || !Array.isArray(payload.models)) {
+  if (loadedCatalog instanceof Response) return loadedCatalog;
+  if (!loadedCatalog.upstream) {
     return proxyError(502, "Invalid response from Codex upstream");
   }
 
-  const seen = new Set<string>();
-  const data = payload.models.flatMap((model) => {
-    if (
-      !isRecord(model) ||
-      typeof model.slug !== "string" ||
-      !model.slug ||
-      model.visibility !== "list" ||
-      model.supported_in_api !== true ||
-      seen.has(model.slug)
-    ) {
-      return [];
-    }
-
-    seen.add(model.slug);
-    return [{ id: model.slug, object: "model", created: 0, owned_by: "openai" }];
-  });
+  const upstream = loadedCatalog.upstream;
+  const data = loadedCatalog.catalog.listedModels.map((model) => ({
+    id: model.slug,
+    object: "model",
+    created: 0,
+    owned_by: "openai",
+  }));
 
   const headers = corsHeaders({
     "Cache-Control": "no-store",
     "Content-Type": "application/json",
   });
   copySafeUpstreamHeaders(upstream, headers);
+  logCodexProxyStage(context, "models.completed", 200, upstream);
   return new Response(JSON.stringify({ object: "list", data }), {
     status: 200,
     headers,

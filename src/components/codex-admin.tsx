@@ -39,6 +39,7 @@ function formatDate(value: string | null): string {
     dateStyle: "medium",
     timeStyle: "short",
     hour12: false,
+    timeZone: "Asia/Singapore",
   }).format(new Date(value));
 }
 
@@ -127,7 +128,7 @@ export function CodexAdmin({
   const [overview, setOverview] = useState(initialOverview);
   const [keys, setKeys] = useState(initialKeys);
   const [device, setDevice] = useState<CodexDeviceAuthorization | null>(null);
-  const [clock, setClock] = useState(() => Date.now());
+  const [clock, setClock] = useState(0);
   const [accountNotice, setAccountNotice] = useState<Notice | null>(null);
   const [keyNotice, setKeyNotice] = useState<Notice | null>(null);
   const [createdKey, setCreatedKey] = useState<{ key: string; name: string } | null>(null);

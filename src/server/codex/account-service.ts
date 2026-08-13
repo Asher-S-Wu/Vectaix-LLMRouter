@@ -17,6 +17,9 @@ import {
   encryptCodexDeviceUserCode,
   encryptCodexRefreshToken,
 } from "@/server/codex/crypto";
+import {
+  fetchChatGptWithCloudflareCookies,
+} from "@/server/codex/chatgpt-cloudflare-fetch";
 
 const CODEX_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 const DEVICE_AUTH_URL =
@@ -232,12 +235,15 @@ async function upstreamFetch(
   context: string,
 ): Promise<Response> {
   try {
-    return await fetch(url, {
+    const requestInit: RequestInit = {
       ...init,
       cache: "no-store",
       redirect: "manual",
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-    });
+    };
+    return new URL(url).origin === "https://chatgpt.com"
+      ? await fetchChatGptWithCloudflareCookies(url, requestInit)
+      : await fetch(url, requestInit);
   } catch {
     throw new CodexUpstreamError(`无法连接${context}`);
   }
