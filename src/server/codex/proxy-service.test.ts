@@ -468,7 +468,7 @@ describe("handleCodexResponsesRequest", () => {
     });
   });
 
-  it("defaults standard model requests to Fast mode and sends required Codex headers", async () => {
+  it("defaults standard model requests to Codex priority processing and sends required headers", async () => {
     const tool = {
       type: "function",
       name: "lookup_file",
@@ -538,7 +538,7 @@ describe("handleCodexResponsesRequest", () => {
         "message.output_text.logprobs",
         "reasoning.encrypted_content",
       ],
-      service_tier: "fast",
+      service_tier: "priority",
       prompt_cache_key: "caller-cache-key",
     });
     expect(upstream.body.input).toEqual([

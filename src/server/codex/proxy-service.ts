@@ -18,7 +18,7 @@ const CODEX_CLIENT_VERSION = "0.147.0";
 const CODEX_ORIGINATOR = "vectaix_llmrouter";
 const CODEX_USER_AGENT = "Vectaix-LLMRouter/1.0.0";
 const CODEX_MODELS_CACHE_MS = 30_000;
-const DEFAULT_CODEX_SERVICE_TIER = "fast";
+const DEFAULT_CODEX_SERVICE_TIER = "priority";
 const RESPONSES_LITE_HEADER = "x-openai-internal-codex-responses-lite";
 
 const RESERVED_CLIENT_METADATA_FIELDS = new Set([
@@ -930,18 +930,6 @@ function parseCodexRequestBody(value: unknown): ParsedCodexRequest | Response {
   };
 }
 
-function modelSupportsServiceTier(
-  model: CodexModelMetadata,
-  serviceTier: string,
-): boolean {
-  if (serviceTier === "fast" || serviceTier === "priority") {
-    return (
-      model.serviceTiers.has("fast") || model.serviceTiers.has("priority")
-    );
-  }
-  return model.serviceTiers.has(serviceTier);
-}
-
 function normalizeRequestBody(
   parsed: ParsedCodexRequest,
   context: CodexRequestContext,
@@ -983,10 +971,7 @@ function normalizeRequestBody(
   }
   if (model.useResponsesLite) reasoning.context = "all_turns";
 
-  if (
-    parsed.serviceTier &&
-    !modelSupportsServiceTier(model, parsed.serviceTier)
-  ) {
+  if (parsed.serviceTier && !model.serviceTiers.has(parsed.serviceTier)) {
     return proxyError(
       400,
       `Service tier is not supported by model ${model.slug}`,
