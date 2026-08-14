@@ -46,7 +46,7 @@ function modelFixture(overrides: Record<string, unknown> = {}) {
     supports_parallel_tool_calls: true,
     supports_reasoning_summary_parameter: true,
     use_responses_lite: false,
-    service_tiers: [],
+    service_tiers: [{ id: "priority" }],
     ...overrides,
   };
 }
@@ -468,7 +468,7 @@ describe("handleCodexResponsesRequest", () => {
     });
   });
 
-  it("normalizes a standard model request and sends required Codex headers", async () => {
+  it("defaults standard model requests to Fast mode and sends required Codex headers", async () => {
     const tool = {
       type: "function",
       name: "lookup_file",
@@ -479,13 +479,7 @@ describe("handleCodexResponsesRequest", () => {
       },
     };
     mocks.fetchChatGptWithCloudflareCookies
-      .mockResolvedValueOnce(
-        modelCatalogResponse([
-          modelFixture({
-            service_tiers: [{ id: "priority" }],
-          }),
-        ]),
-      )
+      .mockResolvedValueOnce(modelCatalogResponse([modelFixture()]))
       .mockResolvedValueOnce(completedSseResponse());
 
     const response = await handleCodexResponsesRequest(
@@ -497,7 +491,6 @@ describe("handleCodexResponsesRequest", () => {
         parallel_tool_calls: true,
         reasoning: { effort: "ultra", summary: "none", context: null },
         include: ["message.output_text.logprobs"],
-        service_tier: "priority",
         prompt_cache_key: "caller-cache-key",
         client_metadata: {
           source: "integration-test",
@@ -545,7 +538,7 @@ describe("handleCodexResponsesRequest", () => {
         "message.output_text.logprobs",
         "reasoning.encrypted_content",
       ],
-      service_tier: "priority",
+      service_tier: "fast",
       prompt_cache_key: "caller-cache-key",
     });
     expect(upstream.body.input).toEqual([
@@ -562,6 +555,32 @@ describe("handleCodexResponsesRequest", () => {
       thread_id: upstream.headers.get("thread-id"),
       "x-codex-window-id": upstream.headers.get("x-codex-window-id"),
     });
+  });
+
+  it("keeps standard mode when explicitly requested", async () => {
+    mocks.fetchChatGptWithCloudflareCookies
+      .mockResolvedValueOnce(modelCatalogResponse())
+      .mockResolvedValueOnce(completedSseResponse());
+
+    const response = await handleCodexResponsesRequest(
+      codexRequest(false, { service_tier: "default" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedUpstreamRequest().body).not.toHaveProperty("service_tier");
+  });
+
+  it("forwards an explicitly requested supported service tier", async () => {
+    mocks.fetchChatGptWithCloudflareCookies
+      .mockResolvedValueOnce(modelCatalogResponse())
+      .mockResolvedValueOnce(completedSseResponse());
+
+    const response = await handleCodexResponsesRequest(
+      codexRequest(false, { service_tier: "priority" }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mockedUpstreamRequest().body.service_tier).toBe("priority");
   });
 
   it("uses Responses Lite framing for models that require it", async () => {
@@ -914,7 +933,7 @@ describe("handleCodexModelsRequest", () => {
           supports_parallel_tool_calls: true,
           supports_reasoning_summary_parameter: true,
           use_responses_lite: false,
-          service_tiers: [],
+          service_tiers: [{ id: "priority" }],
           display_name: "GPT Visible",
           supported_reasoning_levels: [
             { effort: "low", description: "Fast responses" },
@@ -927,7 +946,7 @@ describe("handleCodexModelsRequest", () => {
           supports_parallel_tool_calls: true,
           supports_reasoning_summary_parameter: true,
           use_responses_lite: false,
-          service_tiers: [],
+          service_tiers: [{ id: "priority" }],
         },
       ],
     });
